@@ -274,6 +274,10 @@ impl LoggerUi {
             drop(logger.logs.drain(..dropped_entries));
         }
 
+        let time_padding = logger.logs.last().map_or(0, |record| {
+            format_time(record.time, &self.style, logger.start_time).len()
+        });
+
         ui.horizontal(|ui| {
             if ui.button("Clear").clicked() {
                 logger.logs.clear();
@@ -344,6 +348,29 @@ impl LoggerUi {
                     );
                 });
             }
+            if ui.button("Search").clicked() {
+                self.style.enable_search = !self.style.enable_search;
+            }
+
+            if self.style.enable_copy_button {
+                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                    // TODO: Copy selects all of the logs. Make it only select visible ones (based on the filter, not the UI region).
+                    if ui.button("Copy").clicked() {
+                        let mut out_string = String::new();
+                        logger
+                            .logs
+                            .iter()
+                            .take(self.max_log_length)
+                            .for_each(|record| {
+                                out_string.push_str(
+                                    &format_record(logger, &self.style, record, time_padding).text,
+                                );
+                                out_string.push_str(" \n");
+                            });
+                        ui.ctx().copy_text(out_string);
+                    }
+                });
+            }
         });
 
         if self.style.enable_search {
@@ -394,10 +421,6 @@ impl LoggerUi {
         ui.separator();
 
         let mut logs_displayed: usize = 0;
-
-        let time_padding = logger.logs.last().map_or(0, |record| {
-            format_time(record.time, &self.style, logger.start_time).len()
-        });
 
         egui::ScrollArea::vertical()
             .auto_shrink([false, true])
@@ -450,24 +473,6 @@ impl LoggerUi {
             if self.style.enable_log_count {
                 ui.label(format!("Log size: {}", logger.logs.len()));
                 ui.label(format!("Displayed: {}", logs_displayed));
-            }
-            if self.style.enable_copy_button {
-                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("Copy").clicked() {
-                        let mut out_string = String::new();
-                        logger
-                            .logs
-                            .iter()
-                            .take(self.max_log_length)
-                            .for_each(|record| {
-                                out_string.push_str(
-                                    &format_record(logger, &self.style, record, time_padding).text,
-                                );
-                                out_string.push_str(" \n");
-                            });
-                        ui.ctx().copy_text(out_string);
-                    }
-                });
             }
         });
     }
