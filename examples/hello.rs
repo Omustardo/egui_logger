@@ -1,4 +1,5 @@
 use eframe::NativeOptions;
+use egui_logger::LogCategory;
 
 fn main() {
     // Initialize the logger
@@ -41,8 +42,7 @@ impl eframe::App for MyApp {
                 .max_log_length(2000) // sets maximum log messages to be retained, default is 1000
                 // Since we set "show_all_categories" to false in `main`, we should enable some
                 // categories to be shown by default.
-                .enable_category("hello".into(), true)
-                .enable_category("egui_glow::painter".into(), true)
+                .enable_category(LogCategory::COMBAT.into(), true)
                 .show(ui)
         });
     }

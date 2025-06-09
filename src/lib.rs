@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 mod ui;
 
+use std::fmt;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 use std::sync::Mutex;
@@ -10,6 +11,7 @@ pub use ui::LoggerUi;
 
 use log::SetLoggerError;
 
+// TODO: Add a way to modify what shows up in the UI. The prefix text is too verbose.
 const LEVELS: [log::Level; log::Level::Trace as usize] = [
     log::Level::Error,
     log::Level::Warn,
@@ -21,6 +23,7 @@ const LEVELS: [log::Level; log::Level::Trace as usize] = [
 /// The logger for egui.
 ///
 /// You might want to use [`builder()`] instead to get a builder with default values.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EguiLogger {
     /// The maximum log level that shall be collected.
     max_level: log::LevelFilter,
@@ -96,19 +99,20 @@ impl log::Log for EguiLogger {
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
             if let Ok(ref mut logger) = LOGGER.lock() {
+                let category  = LogCategory::from_str(record.target());
                 logger.logs.push(Record {
                     level: record.level(),
                     message: record.args().to_string(),
-                    target: record.target().to_string(),
+                    target: category,
                     time: chrono::Local::now(),
                 });
 
-                if !logger.categories.contains_key(record.target()) {
+                if !logger.categories.contains_key(&category) {
                     logger
                         .categories
-                        .insert(record.target().to_string(), self.show_all_categories);
+                        .insert(category, self.show_all_categories);
                     logger.max_category_length =
-                        logger.max_category_length.max(record.target().len());
+                        logger.max_category_length.max(record.target().to_string().len());
                 }
             }
         }
@@ -117,41 +121,46 @@ impl log::Log for EguiLogger {
     fn flush(&self) {}
 }
 
-/// Initializes the global logger.
-/// Should be called very early in the program.
-/// Defaults to max level Debug.
-///
-/// This is now deprecated, use [`builder()`] instead.
-#[deprecated(
-    since = "0.5.0",
-    note = "Please use `egui_logger::builder().init()` instead"
-)]
-pub fn init() -> Result<(), SetLoggerError> {
-    builder().init()
-}
-
-/// Same as [`init()`] accepts a [`log::LevelFilter`] to set the max level
-/// use [`Trace`](log::LevelFilter::Trace) with caution
-///
-/// This is now deprecated, use [`builder()`] instead.
-#[deprecated(
-    since = "0.5.0",
-    note = "Please use `egui_logger::builder().max_level(max_level).init()` instead"
-)]
-pub fn init_with_max_level(max_level: log::LevelFilter) -> Result<(), SetLoggerError> {
-    builder().max_level(max_level).init()
-}
-
 struct Record {
     level: log::Level,
     message: String,
-    target: String,
+    target: LogCategory,
     time: chrono::DateTime<chrono::Local>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum LogCategory {
+    DEFAULT,
+    COMBAT,
+    REWARD,
+    DIALOGUE,
+}
+
+impl LogCategory {
+    pub fn from_str(input: &str) -> LogCategory {
+        match input {
+            "Combat" => LogCategory::COMBAT,
+            "Reward" => LogCategory::REWARD,
+            "Dialogue" => LogCategory::DIALOGUE,
+            _ => LogCategory::DEFAULT
+        }
+    }
+}
+
+impl fmt::Display for LogCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LogCategory::DEFAULT => write!(f, "Default"),
+            LogCategory::COMBAT => write!(f, "Combat"),
+            LogCategory::REWARD => write!(f, "Reward"),
+            LogCategory::DIALOGUE => write!(f, "Dialogue"),
+        }
+    }
 }
 
 struct Logger {
     logs: Vec<Record>,
-    categories: HashMap<String, bool>,
+    categories: HashMap<LogCategory, bool>,
     max_category_length: usize,
     start_time: chrono::DateTime<chrono::Local>,
 }

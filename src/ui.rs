@@ -3,15 +3,15 @@ use std::sync::Mutex;
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
 use regex::{Regex, RegexBuilder};
 
-use crate::{Logger, Record, LEVELS, LOGGER};
+use crate::{Logger, Record, LEVELS, LOGGER, LogCategory};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 enum TimePrecision {
     Seconds,
     Milliseconds,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 enum TimeFormat {
     Utc,
     LocalTime,
@@ -19,6 +19,7 @@ enum TimeFormat {
     Hide,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct LoggerStyle {
     enable_regex: bool,
     enable_ctx_menu: bool,
@@ -34,10 +35,6 @@ struct LoggerStyle {
     time_format: TimeFormat,
     include_target: bool,
     include_level: bool,
-
-    warn_color: Color32,
-    error_color: Color32,
-    highlight_color: Color32,
 }
 
 impl Default for LoggerStyle {
@@ -50,9 +47,6 @@ impl Default for LoggerStyle {
             include_level: true,
             time_format: TimeFormat::LocalTime,
             time_precision: TimePrecision::Seconds,
-            warn_color: Color32::YELLOW,
-            error_color: Color32::RED,
-            highlight_color: Color32::LIGHT_GRAY,
             enable_log_count: true,
             enable_copy_button: true,
             enable_search: true,
@@ -66,9 +60,13 @@ impl Default for LoggerStyle {
 
 /// The Ui for the Logger.
 /// You can use [`logger_ui()`] to get a default instance of the LoggerUi.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LoggerUi {
     loglevels: [bool; log::Level::Trace as usize],
     search_term: String,
+    // Don't bother saving Regex. It should be transient and based on user input.
+    // Regex also doesn't implement serde::{Serialize,Deserialize} so it's not trivial to use.
+    #[serde(skip)]
     regex: Option<Regex>,
     search_case_sensitive: bool,
     search_use_regex: bool,
@@ -187,27 +185,6 @@ impl LoggerUi {
         self
     }
 
-    /// Set the color for warning messages.
-    #[inline]
-    pub fn warn_color(mut self, color: Color32) -> Self {
-        self.style.warn_color = color;
-        self
-    }
-
-    /// Set the color for error messages.
-    #[inline]
-    pub fn error_color(mut self, color: Color32) -> Self {
-        self.style.error_color = color;
-        self
-    }
-
-    /// Set the color for log messages that are neither errors nor warnings.
-    #[inline]
-    pub fn highlight_color(mut self, color: Color32) -> Self {
-        self.style.highlight_color = color;
-        self
-    }
-
     /// Set which log levels should be enabled.
     /// The `log_levels` are specified as a boolean array where the first element
     /// corresponds to the `ERROR` level and the last one to the `TRACE` level.
@@ -217,12 +194,12 @@ impl LoggerUi {
         self
     }
 
-    /// Set which log levels should be enabled.
+    /// Set which categories should be enabled.
     ///
     /// # Panics
     /// Panics if the lock to the logger could not be acquired.
     #[inline]
-    pub fn enable_category(self, category: String, enable: bool) -> Self {
+    pub fn enable_category(self, category: LogCategory, enable: bool) -> Self {
         LOGGER
             .lock()
             .as_mut()
@@ -233,6 +210,7 @@ impl LoggerUi {
     }
 
     /// Set the maximum number of log messages that should be retained.
+    // TODO: Make max length per-category. Otherwise spammy logs could quickly take up all of the space.
     #[inline]
     pub fn max_log_length(mut self, max_length: usize) -> Self {
         self.max_log_length = max_length;
@@ -254,8 +232,6 @@ impl LoggerUi {
     }
 
     pub(crate) fn ui(&mut self, ui: &mut egui::Ui) {
-        #[cfg(feature = "puffin")]
-        puffin::profile_scope!("render logger UI");
         let Ok(ref mut logger) = LOGGER.lock() else {
             return;
         };
@@ -274,7 +250,7 @@ impl LoggerUi {
                 ui.menu_button("Log Levels", |ui| {
                     for level in LEVELS {
                         if ui
-                            .selectable_label(self.loglevels[level as usize - 1], level.as_str())
+                            .selectable_label(self.loglevels[level as usize - 1], level.to_string())
                             .clicked()
                         {
                             self.loglevels[level as usize - 1] =
@@ -299,7 +275,7 @@ impl LoggerUi {
                     }
 
                     for (category, enabled) in logger.categories.iter_mut() {
-                        if ui.selectable_label(*enabled, category).clicked() {
+                        if ui.selectable_label(*enabled, category.to_string()).clicked() {
                             *enabled = !*enabled;
                         }
                     }
@@ -417,7 +393,7 @@ impl LoggerUi {
                     if self.style.enable_ctx_menu {
                         response.clone().context_menu(|ui| {
                             if self.style.show_target {
-                                ui.label(&record.target);
+                                ui.label(&record.target.to_string());
                             }
                             response.highlight();
                             let string_format = format!("[{}]: {}", record.level, record.message);
@@ -539,6 +515,12 @@ fn format_record(
     record: &Record,
     time_padding: usize,
 ) -> LayoutJob {
+
+    // TODO: Put these into a logger struct.
+    let warn_color: Color32 = Color32::YELLOW;
+    let error_color: Color32  = Color32::RED;
+    let default_highlight_color: Color32 = Color32::LIGHT_GRAY;
+
     let level_str = if logger_style.include_level {
         format!("[{:5}] ", record.level)
     } else {
@@ -563,17 +545,17 @@ fn format_record(
     ))
     .monospace();
     match record.level {
-        log::Level::Warn => date_str = date_str.color(logger_style.warn_color),
-        log::Level::Error => date_str = date_str.color(logger_style.error_color),
+        log::Level::Warn => date_str = date_str.color(warn_color),
+        log::Level::Error => date_str = date_str.color(error_color),
         _ => {}
     }
 
     date_str.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
     let highlight_color = match record.level {
-        log::Level::Warn => logger_style.warn_color,
-        log::Level::Error => logger_style.error_color,
-        _ => logger_style.highlight_color,
+        log::Level::Warn => warn_color,
+        log::Level::Error => error_color,
+        _ => default_highlight_color,
     };
 
     RichText::new(level_str + &target_str)
@@ -583,8 +565,8 @@ fn format_record(
 
     let mut message = RichText::new(&record.message).monospace();
     match record.level {
-        log::Level::Warn => message = message.color(logger_style.warn_color),
-        log::Level::Error => message = message.color(logger_style.error_color),
+        log::Level::Warn => message = message.color(warn_color),
+        log::Level::Error => message = message.color(error_color),
         _ => {}
     }
 
