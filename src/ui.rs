@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
 use regex::{Regex, RegexBuilder};
-
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::{Logger, Record, LEVELS, LOGGER, LogCategory};
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -18,6 +18,24 @@ enum TimeFormat {
     SinceStart,
     Hide,
 }
+
+
+pub fn serialize_color32<S>(color: &Color32, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let [r, g, b, a] = color.to_array();
+    [r, g, b, a].serialize(serializer)
+}
+
+pub fn deserialize_color32<'de, D>(deserializer: D) -> Result<Color32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let [r, g, b, a] = <[u8; 4]>::deserialize(deserializer)?;
+    Ok(Color32::from_rgba_unmultiplied(r, g, b, a))
+}
+
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct LoggerStyle {
@@ -35,6 +53,13 @@ struct LoggerStyle {
     time_format: TimeFormat,
     include_target: bool,
     include_level: bool,
+
+    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
+    warn_color: Color32,
+    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
+    error_color: Color32,
+    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
+    highlight_color: Color32,
 }
 
 impl Default for LoggerStyle {
@@ -54,6 +79,9 @@ impl Default for LoggerStyle {
             enable_levels_button: true,
             enable_categories_button: true,
             enable_time_button: true,
+            warn_color: Color32::YELLOW,
+            error_color: Color32::RED,
+            highlight_color: Color32::LIGHT_GRAY,
         }
     }
 }
@@ -182,6 +210,27 @@ impl LoggerUi {
     #[inline]
     pub fn enable_time_button(mut self, enable: bool) -> Self {
         self.style.enable_time_button = enable;
+        self
+    }
+
+    /// Set the color for warning messages.
+    #[inline]
+    pub fn warn_color(mut self, color: Color32) -> Self {
+        self.style.warn_color = color;
+        self
+    }
+
+    /// Set the color for error messages.
+    #[inline]
+    pub fn error_color(mut self, color: Color32) -> Self {
+        self.style.error_color = color;
+        self
+    }
+
+    /// Set the color for log messages that are neither errors nor warnings.
+    #[inline]
+    pub fn highlight_color(mut self, color: Color32) -> Self {
+        self.style.highlight_color = color;
         self
     }
 
@@ -516,11 +565,6 @@ fn format_record(
     time_padding: usize,
 ) -> LayoutJob {
 
-    // TODO: Put these into a logger struct.
-    let warn_color: Color32 = Color32::YELLOW;
-    let error_color: Color32  = Color32::RED;
-    let default_highlight_color: Color32 = Color32::LIGHT_GRAY;
-
     let level_str = if logger_style.include_level {
         format!("[{:5}] ", record.level)
     } else {
@@ -545,17 +589,17 @@ fn format_record(
     ))
     .monospace();
     match record.level {
-        log::Level::Warn => date_str = date_str.color(warn_color),
-        log::Level::Error => date_str = date_str.color(error_color),
+        log::Level::Warn => date_str = date_str.color(logger_style.warn_color),
+        log::Level::Error => date_str = date_str.color(logger_style.error_color),
         _ => {}
     }
 
     date_str.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
     let highlight_color = match record.level {
-        log::Level::Warn => warn_color,
-        log::Level::Error => error_color,
-        _ => default_highlight_color,
+        log::Level::Warn => logger_style.warn_color,
+        log::Level::Error => logger_style.error_color,
+        _ => logger_style.highlight_color,
     };
 
     RichText::new(level_str + &target_str)
@@ -565,8 +609,8 @@ fn format_record(
 
     let mut message = RichText::new(&record.message).monospace();
     match record.level {
-        log::Level::Warn => message = message.color(warn_color),
-        log::Level::Error => message = message.color(error_color),
+        log::Level::Warn => message = message.color(logger_style.warn_color),
+        log::Level::Error => message = message.color(logger_style.error_color),
         _ => {}
     }
 

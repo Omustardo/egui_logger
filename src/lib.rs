@@ -11,13 +11,11 @@ pub use ui::LoggerUi;
 
 use log::SetLoggerError;
 
-// TODO: Add a way to modify what shows up in the UI. The prefix text is too verbose.
-const LEVELS: [log::Level; log::Level::Trace as usize] = [
+const LEVELS: [log::Level; 4] = [
     log::Level::Error,
     log::Level::Warn,
     log::Level::Info,
     log::Level::Debug,
-    log::Level::Trace,
 ];
 
 /// The logger for egui.
