@@ -90,7 +90,7 @@ impl Default for LoggerStyle {
 /// You can use [`logger_ui()`] to get a default instance of the LoggerUi.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LoggerUi {
-    loglevels: [bool; log::Level::Trace as usize],
+    loglevels: [bool; 4],
     search_term: String,
     // Don't bother saving Regex. It should be transient and based on user input.
     // Regex also doesn't implement serde::{Serialize,Deserialize} so it's not trivial to use.
@@ -105,7 +105,7 @@ pub struct LoggerUi {
 impl Default for LoggerUi {
     fn default() -> Self {
         Self {
-            loglevels: [true, true, true, false, false],
+            loglevels: [true, true, true, false],
             search_term: String::new(),
             search_case_sensitive: false,
             regex: None,
@@ -119,7 +119,6 @@ impl Default for LoggerUi {
 impl LoggerUi {
     /// Enable or disable the regex search.
     /// True by default.
-    #[inline] // i think the compiler already does this
     pub fn enable_regex(mut self, enable: bool) -> Self {
         self.style.enable_regex = enable;
         self
@@ -127,7 +126,6 @@ impl LoggerUi {
 
     /// Enable or disable the context menu.
     /// True by default.
-    #[inline]
     pub fn enable_ctx_menu(mut self, enable: bool) -> Self {
         self.style.enable_ctx_menu = enable;
         self
@@ -135,7 +133,6 @@ impl LoggerUi {
 
     /// Enable or disable showing the [target](log::Record::target()) in the context menu.
     /// True by default.
-    #[inline]
     pub fn show_target(mut self, enable: bool) -> Self {
         self.style.show_target = enable;
         self
@@ -143,7 +140,6 @@ impl LoggerUi {
 
     /// Enable or disable showing the [target](log::Record::target()) in the records.
     /// True by default.
-    #[inline]
     pub fn include_target(mut self, enable: bool) -> Self {
         self.style.include_target = enable;
         self
@@ -151,7 +147,6 @@ impl LoggerUi {
 
     /// Enable or disable showing the [level](log::Record::level) in the records.
     /// True by default.
-    #[inline]
     pub fn include_level(mut self, enable: bool) -> Self {
         self.style.include_level = enable;
         self
@@ -159,7 +154,6 @@ impl LoggerUi {
 
     /// Enable or disable the copy button.
     /// True by default.
-    #[inline]
     pub fn enable_copy_button(mut self, enable: bool) -> Self {
         self.style.enable_copy_button = enable;
         self
@@ -167,7 +161,6 @@ impl LoggerUi {
 
     /// Enable or disable the count of how many log messages there are.
     /// True by default.
-    #[inline]
     pub fn enable_log_count(mut self, enable: bool) -> Self {
         self.style.enable_log_count = enable;
         self
@@ -175,7 +168,6 @@ impl LoggerUi {
 
     /// Enable or disable the count of how many log messages there are.
     /// True by default.
-    #[inline]
     pub fn enable_search(mut self, enable: bool) -> Self {
         self.style.enable_search = enable;
         self
@@ -183,7 +175,6 @@ impl LoggerUi {
 
     /// Enable or disable the configurable field for the maximum number of shown log output messages.
     /// True by default.
-    #[inline]
     pub fn enable_max_log_output(mut self, enable: bool) -> Self {
         self.style.enable_max_log_output = enable;
         self
@@ -191,7 +182,6 @@ impl LoggerUi {
 
     /// Enable or disable the button to configure the log levels.
     /// True by default.
-    #[inline]
     pub fn enable_levels_button(mut self, enable: bool) -> Self {
         self.style.enable_levels_button = enable;
         self
@@ -199,7 +189,6 @@ impl LoggerUi {
 
     /// Enable or disable the button to configure the log categories.
     /// True by default.
-    #[inline]
     pub fn enable_categories_button(mut self, enable: bool) -> Self {
         self.style.enable_categories_button = enable;
         self
@@ -207,28 +196,24 @@ impl LoggerUi {
 
     /// Enable or disable the button to configure the time format.
     /// True by default.
-    #[inline]
     pub fn enable_time_button(mut self, enable: bool) -> Self {
         self.style.enable_time_button = enable;
         self
     }
 
     /// Set the color for warning messages.
-    #[inline]
     pub fn warn_color(mut self, color: Color32) -> Self {
         self.style.warn_color = color;
         self
     }
 
     /// Set the color for error messages.
-    #[inline]
     pub fn error_color(mut self, color: Color32) -> Self {
         self.style.error_color = color;
         self
     }
 
     /// Set the color for log messages that are neither errors nor warnings.
-    #[inline]
     pub fn highlight_color(mut self, color: Color32) -> Self {
         self.style.highlight_color = color;
         self
@@ -236,9 +221,8 @@ impl LoggerUi {
 
     /// Set which log levels should be enabled.
     /// The `log_levels` are specified as a boolean array where the first element
-    /// corresponds to the `ERROR` level and the last one to the `TRACE` level.
-    #[inline]
-    pub fn log_levels(mut self, log_levels: [bool; log::Level::Trace as usize]) -> Self {
+    /// corresponds to the `ERROR` level and the last one to the `DEBUG` level.
+    pub fn log_levels(mut self, log_levels: [bool; 4]) -> Self {
         self.loglevels = log_levels;
         self
     }
@@ -422,7 +406,7 @@ impl LoggerUi {
             .show(ui, |ui| {
                 logger.logs.iter().for_each(|record| {
                     // Filter out categories that are disabled
-                    if let Some(&false) = logger.categories.get(&record.target) {
+                    if let Some(&false) = logger.categories.get(&record.category) {
                         return;
                     }
 
@@ -442,7 +426,7 @@ impl LoggerUi {
                     if self.style.enable_ctx_menu {
                         response.clone().context_menu(|ui| {
                             if self.style.show_target {
-                                ui.label(&record.target.to_string());
+                                ui.label(&record.category.to_string());
                             }
                             response.highlight();
                             let string_format = format!("[{}]: {}", record.level, record.message);
