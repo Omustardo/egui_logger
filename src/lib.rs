@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 mod ui;
 
-use std::fmt;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 use std::sync::Mutex;
@@ -97,18 +96,17 @@ impl log::Log for EguiLogger {
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
             if let Ok(ref mut logger) = LOGGER.lock() {
-                let category  = LogCategory::from_str(record.target());
                 logger.logs.push(Record {
                     level: record.level(),
                     message: record.args().to_string(),
-                    target: category,
+                    target: record.target().into(),
                     time: chrono::Local::now(),
                 });
 
-                if !logger.categories.contains_key(&category) {
+                if !logger.categories.contains_key(record.target()) {
                     logger
                         .categories
-                        .insert(category, self.show_all_categories);
+                        .insert(record.target().into(), self.show_all_categories);
                     logger.max_category_length =
                         logger.max_category_length.max(record.target().to_string().len());
                 }
@@ -122,43 +120,13 @@ impl log::Log for EguiLogger {
 struct Record {
     level: log::Level,
     message: String,
-    target: LogCategory,
+    target: String,
     time: chrono::DateTime<chrono::Local>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum LogCategory {
-    DEFAULT,
-    COMBAT,
-    REWARD,
-    DIALOGUE,
-}
-
-impl LogCategory {
-    pub fn from_str(input: &str) -> LogCategory {
-        match input {
-            "Combat" => LogCategory::COMBAT,
-            "Reward" => LogCategory::REWARD,
-            "Dialogue" => LogCategory::DIALOGUE,
-            _ => LogCategory::DEFAULT
-        }
-    }
-}
-
-impl fmt::Display for LogCategory {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LogCategory::DEFAULT => write!(f, "Default"),
-            LogCategory::COMBAT => write!(f, "Combat"),
-            LogCategory::REWARD => write!(f, "Reward"),
-            LogCategory::DIALOGUE => write!(f, "Dialogue"),
-        }
-    }
 }
 
 struct Logger {
     logs: Vec<Record>,
-    categories: HashMap<LogCategory, bool>,
+    categories: HashMap<String, bool>,
     max_category_length: usize,
     start_time: chrono::DateTime<chrono::Local>,
 }

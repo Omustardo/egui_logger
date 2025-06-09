@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use crate::{Logger, Record, LEVELS, LOGGER, LogCategory};
+use crate::{Logger, Record, LEVELS, LOGGER};
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 enum TimePrecision {
@@ -232,7 +232,7 @@ impl LoggerUi {
     /// # Panics
     /// Panics if the lock to the logger could not be acquired.
     #[inline]
-    pub fn enable_category(self, category: LogCategory, enable: bool) -> Self {
+    pub fn enable_category(self, category: String, enable: bool) -> Self {
         LOGGER
             .lock()
             .as_mut()
@@ -406,7 +406,7 @@ impl LoggerUi {
             .show(ui, |ui| {
                 logger.logs.iter().for_each(|record| {
                     // Filter out categories that are disabled
-                    if let Some(&false) = logger.categories.get(&record.category) {
+                    if let Some(&false) = logger.categories.get(&record.target) {
                         return;
                     }
 
@@ -426,7 +426,7 @@ impl LoggerUi {
                     if self.style.enable_ctx_menu {
                         response.clone().context_menu(|ui| {
                             if self.style.show_target {
-                                ui.label(&record.category.to_string());
+                                ui.label(&record.target.to_string());
                             }
                             response.highlight();
                             let string_format = format!("[{}]: {}", record.level, record.message);

@@ -1,5 +1,4 @@
 use eframe::NativeOptions;
-use egui_logger::LogCategory;
 
 fn main() {
     // Initialize the logger
@@ -29,6 +28,7 @@ impl eframe::App for MyApp {
             }
             if ui.button("This produces an Error").clicked() {
                 log::error!("Error doing Something");
+                log::error!(target: "New Category", "Demo new category")
             }
             if ui.button("This produces a Warning").clicked() {
                 log::warn!("Warn about something")
@@ -37,12 +37,11 @@ impl eframe::App for MyApp {
         egui::Window::new("Log").show(ctx, |ui| {
             // draws the actual logger ui
             egui_logger::LoggerUi::default()
+                .enable_category("New Category".parse().unwrap(), true)
+                .enable_category("hello".parse().unwrap(), true)
                 .enable_regex(true) // enables regex, default is true
                 .enable_search(true) // enables search bar, default is true
                 .max_log_length(2000) // sets maximum log messages to be retained, default is 1000
-                // Since we set "show_all_categories" to false in `main`, we should enable some
-                // categories to be shown by default.
-                .enable_category(LogCategory::COMBAT.into(), true)
                 .show(ui)
         });
     }
