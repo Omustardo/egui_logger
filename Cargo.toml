@@ -1,28 +1,25 @@
 [package]
 name = "egui_logger"
-version = "0.7.0"
-edition = "2021"
-authors = ["Jacob <RegenJacob@gmx.de>"]
+version = "0.1.0"
+edition = "2024"
+authors = ["Omar Mustardo"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/RegenJacob/egui_logger"
+repository = "https://github.com/Omustardo/egui_logger"
 description = "log implementation for egui"
 categories = ["gui", "game-development", "development-tools::debugging"]
 include = ["src/*.rs", "Cargo.toml", "LICENSE"]
 
 [dependencies]
-log = { version = "0.4", features = ["serde"] }
 egui = "0.31"
 regex = { version = "1.11" }
 serde = { version = "1.0.219", features = ["derive"] }
 
 [dev-dependencies]
 eframe = "0.31"
-multi_log = "0.1"
-env_logger = "0.11"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-chrono = { version = "0.4", default-features = false, features = ["alloc", "clock"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "wasmbind"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "wasmbind", "serde"] }

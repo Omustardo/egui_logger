@@ -1,40 +1,28 @@
-[![Crates.io](https://img.shields.io/crates/v/egui_logger)](https://crates.io/crates/egui_logger)
-[![docs.rs](https://img.shields.io/docsrs/egui_logger)](https://docs.rs/egui_logger/latest/egui_logger/)
-
-
-
 # egui_logger
-This library implements a UI for displaying [`log`](https://crates.io/crates/log) messages in [`egui`](https://crates.io/crates/egui) applications.
+
+This library implements a UI for displaying log messages in [`egui`](https://crates.io/crates/egui) applications.
 There are also various ways to filter the logging output within the UI, such as a regex search through the messages.
 
+This was forked from https://github.com/RegenJacob/egui_logger but has diverged
+significantly. Instead of working with the [`log`](https://crates.io/crates/log)
+crate, it has its own log methods.
+
+It is intended to be used as a chat box in a game.
+
 ## Demo
-![demo](images/egui_logger.png "Demo")
+
+![demo](images/demo.png "Demo")
 
 ## Features
-- `puffin` compatibility with the [puffin](https://crates.io/crates/puffin) crate.
 
-## Example
+* Search box (with toggles for regex and case sensitivity).
+* Log messages can be tagged with a category. Anything that has ToString can be used, but it's recommended to provide your own LogCategory enum. Filtering on category is supported.
+* Log messages have a severity level (Debug,Warn,Info,Error), and can be filtered to only that level and higher.
+* Copy button that copies all logs to clipboard. It supports the current filter and search.
+* Limits the number of messages and size of each message to avoid unbounded memory usage. Limits are configurable.
 
-### Initializing:
-```rust
-fn main() {
-  // Should be called very early in the program.
-  egui_logger::builder().init().unwrap();
-}
-```
+## TODO
 
-### Inside your UI logic:
-```rust
-fn ui(ctx: &egui::Context) {
-    egui::Window::new("Log").show(ctx, |ui| {
-        // draws the logger ui.
-        egui_logger::logger_ui().show(ui);
-    });
-}
-```
-
-## Alternatives
-- [egui_tracing](https://crates.io/crates/egui_tracing) primarily for the [tracing](https://crates.io/crates/tracing) crate, but also supports log.
-
-## Contribution
-Feel free to open issues and pull requests.
+* Ensure the UI renders smoothly for large logs and quick scrolling.
+* Consider adding support for user input rather than making people roll their own.
+* Go through TODOs in lib.rs
