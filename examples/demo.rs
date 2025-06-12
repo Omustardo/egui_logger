@@ -28,17 +28,10 @@ enum MyLogCategory {
     Network,
 }
 impl fmt::Display for MyLogCategory {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            MyLogCategory::Unknown => write!(f, "Unknown"),
-            MyLogCategory::Dialogue => write!(f, "Dialogue"),
-            MyLogCategory::Input => write!(f, "Input"),
-            MyLogCategory::Combat => write!(f, "Combat"),
-            MyLogCategory::Network => write!(f, "Network"),
-        }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
-
 
 struct MyApp {
     logger: egui_logger::EguiLogger,
