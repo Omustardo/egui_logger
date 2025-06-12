@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Formatter;
 use eframe::NativeOptions;
 use egui_logger::{TimeFormat, TimePrecision};
 
@@ -8,11 +10,35 @@ fn main() {
     logger.show_level = true;
     logger.time_format = TimeFormat::LocalTime;
     logger.time_precision = TimePrecision::Milliseconds;
+    logger.input_text_prefix = "User: ".to_string();
+    logger.set_input_categories(vec![MyLogCategory::Input,MyLogCategory::Dialogue]);
 
     let app = MyApp::new(logger);
 
     eframe::run_native("egui_logger", NativeOptions::default(), Box::new(|_cc| Ok(Box::new(app)))).unwrap();
 }
+
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
+enum MyLogCategory {
+    Unknown,
+    Dialogue,
+    Input,
+    Combat,
+    Network,
+}
+impl fmt::Display for MyLogCategory {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            MyLogCategory::Unknown => write!(f, "Unknown"),
+            MyLogCategory::Dialogue => write!(f, "Dialogue"),
+            MyLogCategory::Input => write!(f, "Input"),
+            MyLogCategory::Combat => write!(f, "Combat"),
+            MyLogCategory::Network => write!(f, "Network"),
+        }
+    }
+}
+
 
 struct MyApp {
     logger: egui_logger::EguiLogger,
@@ -29,19 +55,19 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             if ui.button("This produces Debug Info").clicked() {
-                self.logger.log_debug(vec!["Category1"],"Very verbose Debug Info")
+                self.logger.log_debug(vec![MyLogCategory::Network],"Connecting...")
             }
             if ui.button("This produces an Info").clicked() {
-                self.logger.log_info(vec!["Category1"],"Some Info")
+                self.logger.log_info(vec![MyLogCategory::Dialogue],"Hello World")
             }
             if ui.button("This produces an Error").clicked() {
-                self.logger.log_error( vec!["Serious", "OMG"],"Error doing Something");
+                self.logger.log_error( vec![MyLogCategory::Network],"Disconnected unexpectedly!");
             }
             if ui.button("This produces a Warning").clicked() {
-                self.logger.log_warn(vec![""], "Warn about something")
+                self.logger.log_warn(vec![MyLogCategory::Unknown], "Be warned")
             }
         });
-        egui::TopBottomPanel::bottom("chat area").min_height(200_f32).show(ctx, |ui| {
+        egui::TopBottomPanel::bottom("chat area").resizable(true).min_height(200.0).show(ctx, |ui| {
             self.logger.show(ui);
         });
     }

@@ -117,7 +117,7 @@ pub struct EguiLogger {
     search_regex: Option<Regex>,
     // Whether regex based searching is enabled.
     pub search_with_regex: bool,
-    /// Whether search should be case sensitive.
+    /// Whether search should be case sensitive. This also applies to regex search.
     pub search_with_case_sensitive: bool,
 
     #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
@@ -125,7 +125,17 @@ pub struct EguiLogger {
     #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
     pub error_color: Color32,
     #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
-    pub highlight_color: Color32,
+    pub info_color: Color32,
+    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
+    pub debug_color: Color32,
+
+    // Fields related to the text box and user input.
+
+    pub show_input_area: bool,
+    input_text: String,
+    pub input_text_prefix: String,
+    input_categories: Vec<String>,
+    pub input_level: LogLevel,
 }
 
 impl Default for EguiLogger {
@@ -148,7 +158,7 @@ impl EguiLogger {
             records: default_records(),
             category_counts: Default::default(),
             min_display_level: LogLevel::Debug,
-            hidden_categories: HashSet::new(), // Empty means show all
+            hidden_categories: HashSet::new(),
             time_format: TimeFormat::LocalTime,
             time_precision: TimePrecision::Seconds,
             show_categories: true,
@@ -162,7 +172,13 @@ impl EguiLogger {
             search_with_case_sensitive: false,
             warn_color: Color32::YELLOW,
             error_color: Color32::RED,
-            highlight_color: Color32::LIGHT_GRAY,
+            info_color: Color32::LIGHT_GRAY,
+            debug_color: Color32::LIGHT_GREEN,
+            show_input_area: true,
+            input_text: String::new(),
+            input_text_prefix: String::new(),
+            input_categories: vec!["Input".parse().unwrap()],
+            input_level: LogLevel::Info,
         }
     }
 
@@ -183,10 +199,12 @@ impl EguiLogger {
     pub fn log<T: ToString>(&mut self, level: LogLevel, categories: Vec<T>, message: &str) {
         let category_strs: Vec<String> = categories.into_iter().map(|c| c.to_string()).collect();
 
-        let truncated_message = if message.len() > self.max_message_length {
-            format!("{}...", &message[..self.max_message_length.saturating_sub(3)])
+        let cleaned_message: String = message.chars().filter(|c| !c.eq(&'\n')).collect();
+
+        let truncated_message = if cleaned_message.len() > self.max_message_length {
+            format!("{}...", &cleaned_message[..self.max_message_length.saturating_sub(3)])
         } else {
-            message.parse().unwrap()
+            cleaned_message.parse().unwrap()
         };
 
         category_strs.iter().for_each(
@@ -227,6 +245,10 @@ impl EguiLogger {
         self.enforce_limit(&LogLevel::Warn);
         self.enforce_limit(&LogLevel::Info);
         self.enforce_limit(&LogLevel::Debug);
+    }
+
+    pub fn set_input_categories<T: ToString>(&mut self, categories: Vec<T>) {
+        self.input_categories = categories.into_iter().map(|c| c.to_string()).collect();
     }
 
     /// Clear all log records
@@ -312,24 +334,32 @@ impl EguiLogger {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         let time_padding = self.get_time_format_padding();
 
+        // Top Bar
         ui.horizontal(|ui| {
+            // TODO: Should this Clear everything, or only things which are currently visible?
             if ui.button("Clear").clicked() {
                 self.clear();
             }
 
             // TODO: add a "copy recent" button based on timestamp? Maybe 2 minutes of logs?
             if ui.button("Copy").clicked() {
-                let mut out_string = String::new();
-                // TODO: How can I efficiently interleave logs based on timestamp? I shouldn't need to sort if each individual `Vec<LogRecord>` is already sorted. Just need to pop off of each one in turn.
                 let time_padding = self.get_time_format_padding();
-                self.records.values().into_iter().flatten()
+
+                // Collect, filter, then sort records for a chronological copy.
+                let mut records_to_copy: Vec<&LogRecord> = self.records
+                    .values()
+                    .flatten()
                     .filter(|record| self.matches_filters(record))
-                    .for_each(|record| {
-                        out_string.push_str(
-                            self.format_record(record, time_padding).text.clone().as_str(),
-                        );
-                        out_string.push_str(" \n");
-                    });
+                    .collect();
+                records_to_copy.sort_by_key(|r| r.timestamp);
+
+                let mut out_string = String::new();
+                for record in records_to_copy {
+                    out_string.push_str(
+                        self.format_record(record, time_padding).text.as_str(),
+                    );
+                    out_string.push_str("\n"); // Use newline for better copy-paste
+                }
                 ui.ctx().copy_text(out_string);
             };
 
@@ -403,10 +433,15 @@ impl EguiLogger {
                 if ui.selectable_label(self.show_level, "Show Log Level").clicked() {
                     self.show_level = !self.show_level;
                 }
+                if ui.selectable_label(self.show_input_area, "Show Input Area").clicked() {
+                    self.show_input_area = !self.show_input_area;
+                }
                 // TODO: support changing text colors.
             });
         });
+        ui.separator();
 
+        // Search Bar
         if self.show_search {
             ui.horizontal(|ui| {
                 ui.label("Search: ");
@@ -443,13 +478,19 @@ impl EguiLogger {
             });
         }
 
-        let mut logs_displayed: usize = 0;
-
+        // Text display
         egui::ScrollArea::vertical()
-            .auto_shrink([false, true])
-            .max_height(ui.available_height() - 30.0)
+            .max_height(ui.available_height())
             .stick_to_bottom(true)
             .show(ui, |ui| {
+                // Add some empty labels to pad out this display area. Otherwise the scroll bar lets
+                // it collapse into a pancake. Setting min_height didn't work because it then made the
+                // input box show up near the middle of the screen! There's probably a way to do
+                // this properly, but this seems fine.
+                for _ in 0..16 {
+                    ui.label("");
+                }
+
                 let mut all_records: Vec<&LogRecord> = self.records.values().flatten().collect();
                 all_records.sort_by_key(|r| r.timestamp);
                 all_records.into_iter().for_each(|record| {
@@ -459,6 +500,7 @@ impl EguiLogger {
                     }
 
                     let layout_job = self.format_record(&record, time_padding);
+                    // TODO: this text clone is effectively an N^2 operation over all records I think? If so, make a stringbuilder at the top and then set the clipboard at the end.
                     let raw_text = layout_job.text.clone();
 
                     // Filter out logs that are disabled via search options.
@@ -484,10 +526,33 @@ impl EguiLogger {
                             ui.ctx().copy_text(raw_text);
                         }
                     });
-
-                    logs_displayed += 1;
                 });
-            });
+            // Text input
+            if self.show_input_area {
+                ui.separator(); // Visual separation above input field
+                egui::ScrollArea::vertical().id_salt("text_input_area")
+                    .stick_to_bottom(true).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let input_edit = egui::TextEdit::singleline(&mut self.input_text)
+                            .char_limit(self.max_message_length)
+                            .cursor_at_end(true)
+                            .hint_text("")
+                            .id(egui::Id::new("egui_logger_input_field")) // Unique ID for focus
+                            .desired_width(f32::INFINITY); // Take all available horizontal space
+
+                        let response = ui.add(input_edit);
+
+                        if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !self.input_text.trim().is_empty() {
+                            let prefix_text: String = self.input_text_prefix.chars().take(16).collect(); // Cap prefixes at 16 characters.
+                            let input_text = std::mem::take(&mut self.input_text); // Get text and clear field
+                            let submitted_text = format!("{}{}", prefix_text, input_text);
+                            self.log_info(self.input_categories.clone(), submitted_text.as_str());
+                            response.request_focus(); // Keep focus on the input field after submit. Pressing enter on an empty input skips this, and is the way to escape the input box.
+                        }
+                    });
+                });
+            }
+        });
     }
 
     // match_string determines if the given search terms match the provided string.
@@ -563,7 +628,8 @@ impl EguiLogger {
         let highlight_color = match record.level {
             LogLevel::Warn => self.warn_color,
             LogLevel::Error => self.error_color,
-            _ => self.highlight_color,
+            LogLevel::Info => self.info_color,
+            LogLevel::Debug => self.debug_color,
         };
 
         RichText::new(level_str + &category_str)
@@ -571,6 +637,7 @@ impl EguiLogger {
             .color(highlight_color)
             .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
+        // The full message gets the color for warn and error since it makes them stand out.
         let mut message = RichText::new(&record.message).monospace();
         match record.level {
             LogLevel::Warn => message = message.color(self.warn_color),
