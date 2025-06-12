@@ -334,17 +334,13 @@ impl EguiLogger {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         let time_padding = self.get_time_format_padding();
 
-        // Top Bar
+        // --- Top Controls ---
         ui.horizontal(|ui| {
-            // TODO: Should this Clear everything, or only things which are currently visible?
             if ui.button("Clear").clicked() {
                 self.clear();
             }
 
-            // TODO: add a "copy recent" button based on timestamp? Maybe 2 minutes of logs?
             if ui.button("Copy").clicked() {
-                let time_padding = self.get_time_format_padding();
-
                 // Collect, filter, then sort records for a chronological copy.
                 let mut records_to_copy: Vec<&LogRecord> = self.records
                     .values()
@@ -356,7 +352,7 @@ impl EguiLogger {
                 let mut out_string = String::new();
                 for record in records_to_copy {
                     out_string.push_str(
-                        self.format_record(record, time_padding).text.as_str(),
+                        self.format_record(record, time_padding).text.as_str(), // Use existing time_padding
                     );
                     out_string.push_str("\n"); // Use newline for better copy-paste
                 }
@@ -364,13 +360,9 @@ impl EguiLogger {
             };
 
             ui.menu_button("Filter", |ui| {
-
                 ui.menu_button("Log Levels", |ui| {
                     for level in vec![LogLevel::Error, LogLevel::Warn, LogLevel::Info, LogLevel::Debug] {
-                        if ui
-                            .selectable_label(self.min_display_level <= level, level.as_str())
-                            .clicked()
-                        {
+                        if ui.selectable_label(self.min_display_level <= level, level.as_str()).clicked() {
                             self.min_display_level = level;
                         }
                     }
@@ -385,14 +377,17 @@ impl EguiLogger {
                             self.hidden_categories.insert(category);
                         }
                     }
-                    let categories = self.category_counts.keys();
-                    for category in categories {
-                        let enabled = !self.hidden_categories.contains(category);
-                        if ui.selectable_label(enabled, category.as_str()).clicked() {
-                            if self.hidden_categories.contains(category) {
-                                self.hidden_categories.remove(category);
+                    // Iterate over category names (&String) from category_counts
+                    let categories_to_display: Vec<String> = self.category_counts.keys().cloned().collect();
+                    for cat_str in categories_to_display {
+                        let is_currently_shown = !self.hidden_categories.contains(&cat_str);
+
+                        if ui.selectable_label(is_currently_shown, &cat_str).clicked() {
+                            // Toggle state
+                            if is_currently_shown {
+                                self.hidden_categories.insert(cat_str.to_string()); // Hide it
                             } else {
-                                self.hidden_categories.insert(category.to_string());
+                                self.hidden_categories.remove(&cat_str); // Show it
                             }
                         }
                     }
@@ -406,27 +401,12 @@ impl EguiLogger {
             ui.menu_button("Format", |ui| {
                 ui.menu_button("Time", |ui| {
                     ui.radio_value(&mut self.time_format, TimeFormat::Utc, "UTC");
-                    ui.radio_value(
-                        &mut self.time_format,
-                        TimeFormat::LocalTime,
-                        "Local Time",
-                    );
+                    ui.radio_value(&mut self.time_format, TimeFormat::LocalTime, "Local Time");
                     ui.radio_value(&mut self.time_format, TimeFormat::Hide, "Hide");
-
                     ui.separator();
-
-                    ui.radio_value(
-                        &mut self.time_precision,
-                        TimePrecision::Seconds,
-                        "Seconds",
-                    );
-                    ui.radio_value(
-                        &mut self.time_precision,
-                        TimePrecision::Milliseconds,
-                        "Milliseconds",
-                    );
+                    ui.radio_value(&mut self.time_precision, TimePrecision::Seconds, "Seconds");
+                    ui.radio_value(&mut self.time_precision, TimePrecision::Milliseconds, "Milliseconds");
                 });
-
                 if ui.selectable_label(self.show_categories, "Show Categories").clicked() {
                     self.show_categories = !self.show_categories;
                 }
@@ -436,140 +416,111 @@ impl EguiLogger {
                 if ui.selectable_label(self.show_input_area, "Show Input Area").clicked() {
                     self.show_input_area = !self.show_input_area;
                 }
-                // TODO: support changing text colors.
             });
         });
         ui.separator();
 
-        // Search Bar
+        // --- Search Bar (if visible) ---
         if self.show_search {
             ui.horizontal(|ui| {
                 ui.label("Search: ");
                 let response = ui.text_edit_singleline(&mut self.search_term);
-
+                // Limit the length of the search term to avoid absurdly long strings from being
+                // compiled to regex and potentially causing performance issues. There are
+                // still probably bad edge cases, but people would need to be trying to abuse it.
+                self.search_term = self.search_term.chars().filter(|c| !c.eq(&'\n') && !c.is_control()).take(256).collect();
                 let mut config_changed = false;
-
-                if ui
-                    .selectable_label(self.search_with_case_sensitive, "Aa")
-                    .on_hover_text("Case sensitive")
-                    .clicked()
-                {
+                if ui.selectable_label(self.search_with_case_sensitive, "Aa").on_hover_text("Case sensitive").clicked() {
                     self.search_with_case_sensitive = !self.search_with_case_sensitive;
                     config_changed = true;
                 }
-
-                if ui
-                    .selectable_label(self.search_with_regex, ".*")
-                    .on_hover_text("Use regex")
-                    .clicked()
-                {
+                if ui.selectable_label(self.search_with_regex, ".*").on_hover_text("Use regex").clicked() {
                     self.search_with_regex = !self.search_with_regex;
                     config_changed = true;
                 }
-
-                if self.search_with_regex
-                    && (response.changed() || config_changed)
-                {
+                if self.search_with_regex && (response.changed() || config_changed) {
                     self.search_regex = RegexBuilder::new(&self.search_term)
                         .case_insensitive(!self.search_with_case_sensitive)
                         .build()
-                        .ok()
+                        .ok();
                 }
             });
+            ui.separator(); // Separator after search bar
         }
 
-        // Text display
-        egui::ScrollArea::vertical()
-            .max_height(ui.available_height())
-            .stick_to_bottom(true)
-            .show(ui, |ui| {
-                // Add some empty labels to pad out this display area. Otherwise the scroll bar lets
-                // it collapse into a pancake. Setting min_height didn't work because it then made the
-                // input box show up near the middle of the screen! There's probably a way to do
-                // this properly, but this seems fine.
-                for _ in 0..16 {
-                    ui.label("");
-                }
-
-                let mut all_records: Vec<&LogRecord> = self.records.values().flatten().collect();
-                all_records.sort_by_key(|r| r.timestamp);
-                all_records.into_iter().for_each(|record| {
-                    // Filter based on log level and categories.
-                    if !self.matches_filters(&record) {
-                        return
-                    }
-
-                    let layout_job = self.format_record(&record, time_padding);
-                    // TODO: this text clone is effectively an N^2 operation over all records I think? If so, make a stringbuilder at the top and then set the clipboard at the end.
-                    let raw_text = layout_job.text.clone();
-
-                    // Filter out logs that are disabled via search options.
-                    if !self.search_term.is_empty() && !self.match_string(&raw_text) {
-                        return;
-                    }
-
-                    let response = ui.label(layout_job);
-
-                    response.clone().context_menu(|ui| {
-                        if self.show_categories {
-                            ui.label(&record.categories.join(","));
-                        }
-                        response.highlight();
-                        let string_format = format!("[{:?}]: {}", record.level, record.message);
-
-                        // the vertical layout is because otherwise text spacing gets weird
-                        ui.vertical(|ui| {
-                            ui.monospace(string_format);
-                        });
-
-                        if ui.button("Copy").clicked() {
-                            ui.ctx().copy_text(raw_text);
-                        }
-                    });
-                });
-            // Text input
-            if self.show_input_area {
-                ui.separator(); // Visual separation above input field
-                egui::ScrollArea::vertical().id_salt("text_input_area")
-                    .stick_to_bottom(true).show(ui, |ui| {
-                    ui.horizontal(|ui| {
+        // --- Input Area (Bottom Panel) ---
+        // This panel is defined before the central log area so it can reserve its space.
+        if self.show_input_area {
+            // Use a unique ID for the panel to avoid conflicts if this logger is used multiple times in same ui scope.
+            let panel_id = ui.id().with("egui_logger_input_panel");
+            egui::TopBottomPanel::bottom(panel_id)
+                .resizable(false) // Input area usually has a fixed height
+                .show_inside(ui, |panel_ui| { // `panel_ui` is the Ui for the bottom panel
+                    panel_ui.horizontal(|input_ui| { // Use `input_ui` (which is `panel_ui` here)
                         let input_edit = egui::TextEdit::singleline(&mut self.input_text)
                             .char_limit(self.max_message_length)
                             .cursor_at_end(true)
-                            .hint_text("")
+                            .hint_text("Type a message and press Enter...")
                             .id(egui::Id::new("egui_logger_input_field")) // Unique ID for focus
-                            .desired_width(f32::INFINITY); // Take all available horizontal space
+                            .desired_width(f32::INFINITY);
 
-                        let response = ui.add(input_edit);
+                        let response = input_ui.add(input_edit);
 
-                        if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !self.input_text.trim().is_empty() {
-                            let prefix_text: String = self.input_text_prefix.chars().take(16).collect(); // Cap prefixes at 16 characters.
-                            let input_text = std::mem::take(&mut self.input_text); // Get text and clear field
-                            let submitted_text = format!("{}{}", prefix_text, input_text);
-                            self.log_info(self.input_categories.clone(), submitted_text.as_str());
-                            response.request_focus(); // Keep focus on the input field after submit. Pressing enter on an empty input skips this, and is the way to escape the input box.
+                        // Check for Enter key press to submit
+                        if response.lost_focus() && input_ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                            if !self.input_text.trim().is_empty() {
+                                let prefix_text: String = self.input_text_prefix.chars().take(16).collect();
+                                let current_input = std::mem::take(&mut self.input_text); // Get text and clear field
+                                let submitted_text = format!("{}{}", prefix_text, current_input);
+                                self.log_info(self.input_categories.clone(), submitted_text.as_str());
+                                response.request_focus(); // Keep focus on the input field after submit.
+                            }
+                            // If input_text was empty and Enter was pressed, focus is lost, no log, no refocus. This allows "escaping" the input field.
                         }
                     });
                 });
-            }
-        });
-    }
-
-    // match_string determines if the given search terms match the provided string.
-    fn match_string(&self, string: &str) -> bool {
-        if self.search_with_regex {
-            if let Some(matcher) = &self.search_regex {
-                matcher.is_match(string)
-            } else {
-                false
-            }
-        } else if self.search_with_case_sensitive {
-            string.contains(&self.search_term)
-        } else {
-            string
-                .to_lowercase()
-                .contains(&self.search_term.to_lowercase())
         }
+
+        // --- Log Display Area (Central Scroll Area) ---
+        // This `ScrollArea` will use the space remaining in `ui` after the top controls
+        // and the bottom input panel have been laid out.
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false]) // Fill available width and height. Crucial.
+            .stick_to_bottom(true)
+            .show(ui, |scroll_ui| {
+
+                let mut all_records: Vec<&LogRecord> = self.records.values().flatten().collect();
+                all_records.sort_by_key(|r| r.timestamp);
+
+                if all_records.is_empty() && !self.show_input_area { // Only if truly nothing else might take vertical space
+                    scroll_ui.label("No logs to display.");
+                }
+
+                all_records.into_iter().for_each(|record| {
+                    if !self.matches_filters(&record) {
+                        return;
+                    }
+
+                    let layout_job = self.format_record(&record, time_padding);
+                    let raw_text = layout_job.text.clone(); // Still needed for copy in context menu
+
+                    let response = scroll_ui.label(layout_job);
+
+                    response.clone().context_menu(|menu_ui| {
+                        if self.show_categories {
+                            menu_ui.label(&record.categories.join(","));
+                        }
+                        let string_format = format!("[{:?}]: {}", record.level, record.message);
+                        menu_ui.vertical(|v_ui| {
+                            v_ui.monospace(string_format);
+                        });
+                        if menu_ui.button("Copy").clicked() {
+                            menu_ui.ctx().copy_text(raw_text);
+                            menu_ui.close_menu();
+                        }
+                    });
+                });
+            });
     }
 
     fn format_time(
