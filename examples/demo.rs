@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fmt::Formatter;
 use eframe::NativeOptions;
 use egui_logger::{TimeFormat, TimePrecision};
 
