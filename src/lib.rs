@@ -131,10 +131,17 @@ pub struct EguiLogger {
 
     // Fields related to the text box and user input.
 
+    // Whether to show the entire text input section.
     pub show_input_area: bool,
+    // The current user input.
     input_text: String,
+    // When input_text is empty, this text is displayed to indicate where the input box is.
+    pub input_hint: String,
+    // A message to prepend to all user inputs.
     pub input_text_prefix: String,
+    // Categories to apply to LogRecords triggered by user input.
     input_categories: Vec<String>,
+    // The log level to apply to LogRecords triggered by user input.
     pub input_level: LogLevel,
 }
 
@@ -175,6 +182,7 @@ impl EguiLogger {
             info_color: Color32::LIGHT_GRAY,
             debug_color: Color32::LIGHT_GREEN,
             show_input_area: true,
+            input_hint: "Type a message and press Enter...".to_string(),
             input_text: String::new(),
             input_text_prefix: String::new(),
             input_categories: vec!["Input".parse().unwrap()],
@@ -416,6 +424,13 @@ impl EguiLogger {
                 if ui.selectable_label(self.show_input_area, "Show Input Area").clicked() {
                     self.show_input_area = !self.show_input_area;
                 }
+                ui.horizontal(|ui| {
+                    ui.label("Input area hint: ");
+                    ui.text_edit_singleline(&mut self.input_hint);
+                    if self.input_hint.len() > 16 {
+                        self.input_hint.truncate(16);
+                    }
+                });
             });
         });
         ui.separator();
@@ -460,7 +475,7 @@ impl EguiLogger {
                         let input_edit = egui::TextEdit::singleline(&mut self.input_text)
                             .char_limit(self.max_message_length)
                             .cursor_at_end(true)
-                            .hint_text("Type a message and press Enter...")
+                            .hint_text(self.input_hint.clone())
                             .id(egui::Id::new("egui_logger_input_field")) // Unique ID for focus
                             .desired_width(f32::INFINITY);
 
