@@ -2,7 +2,7 @@
 
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
 use regex::{Regex, RegexBuilder};
 
@@ -67,7 +67,7 @@ where
 pub struct EguiLogger {
     // TODO: Switch to a BinaryHeap. This will be way more efficient when iterating over all records
     //   since it will have them sorted by timestamp for free. It should also be able to do a fixed max size? Try using itertools?
-    records: HashMap<LogLevel, Vec<LogRecord>>,
+    records: HashMap<LogLevel, VecDeque<LogRecord>>,
 
     // Count of each category. Kept up to date as new records are added and old are removed.
     // Reports with multiple categories are counted once per category.
@@ -151,12 +151,12 @@ impl Default for EguiLogger {
     }
 }
 
-fn default_records() -> HashMap<LogLevel, Vec<LogRecord>> {
+fn default_records() -> HashMap<LogLevel, VecDeque<LogRecord>> {
     let mut records = HashMap::new();
-    records.insert(LogLevel::Error, Vec::new());
-    records.insert(LogLevel::Warn, Vec::new());
-    records.insert(LogLevel::Info, Vec::new());
-    records.insert(LogLevel::Debug, Vec::new());
+    records.insert(LogLevel::Error, VecDeque::new());
+    records.insert(LogLevel::Warn, VecDeque::new());
+    records.insert(LogLevel::Info, VecDeque::new());
+    records.insert(LogLevel::Debug, VecDeque::new());
     records
 }
 impl EguiLogger {
@@ -190,24 +190,24 @@ impl EguiLogger {
         }
     }
 
-    pub fn log_error<T: ToString>(&mut self, categories: Vec<T>, message: &str) {
+    pub fn log_error<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
         self.log(LogLevel::Error, categories, message);
     }
-    pub fn log_warn<T: ToString>(&mut self, categories: Vec<T>, message: &str) {
+    pub fn log_warn<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
         self.log(LogLevel::Warn, categories, message);
     }
-    pub fn log_info<T: ToString>(&mut self, categories: Vec<T>, message: &str) {
+    pub fn log_info<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
         self.log(LogLevel::Info, categories, message);
     }
-    pub fn log_debug<T: ToString>(&mut self, categories: Vec<T>, message: &str) {
+    pub fn log_debug<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
         self.log(LogLevel::Debug, categories, message);
     }
 
     /// Log a message with the given level and category
-    pub fn log<T: ToString>(&mut self, level: LogLevel, categories: Vec<T>, message: &str) {
+    pub fn log<T: ToString>(&mut self, level: LogLevel, categories: Vec<T>, message: impl AsRef<str>) {
         let category_strs: Vec<String> = categories.into_iter().map(|c| c.to_string()).collect();
 
-        let cleaned_message: String = message.chars().filter(|c| !c.eq(&'\n')).collect();
+        let cleaned_message: String = message.as_ref().chars().filter(|c| !c.eq(&'\n')).collect();
 
         let truncated_message = if cleaned_message.len() > self.max_message_length {
             format!("{}...", &cleaned_message[..self.max_message_length.saturating_sub(3)])
@@ -228,22 +228,21 @@ impl EguiLogger {
             categories: category_strs,
             message: truncated_message,
         };
-        self.records.get_mut(&level).unwrap().push(record);
+        self.records.get_mut(&level).unwrap().push_back(record);
         self.enforce_limits();
     }
 
     /// Enforce the maximum record limits for a single log level.
     fn enforce_limit(&mut self, level: &LogLevel) {
         let records = self.records.get_mut(level).unwrap();
-        if records.len() <= self.max_records_per_level {
-            return
-        }
-        for r in records.drain(&self.max_records_per_level..) {
-            r.categories.iter().for_each(
-                |category| {
-                    self.category_counts.entry(category.to_string()).and_modify(|count| *count -= 1);
-                }
-            )
+        while records.len() > self.max_records_per_level {
+             if let Some(r) = records.pop_front() {
+                 r.categories.iter().for_each(
+                     |category| {
+                         self.category_counts.entry(category.to_string()).and_modify(|count| *count -= 1);
+                     }
+                 )
+             }
         }
     }
 

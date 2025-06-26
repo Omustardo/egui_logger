@@ -10,6 +10,7 @@ fn main() {
     logger.time_format = TimeFormat::LocalTime;
     logger.time_precision = TimePrecision::Milliseconds;
     logger.input_text_prefix = "User: ".to_string();
+    logger.max_records_per_level = 5;
     logger.set_input_categories(vec![MyLogCategory::Input,MyLogCategory::Dialogue]);
 
     let app = MyApp::new(logger);
