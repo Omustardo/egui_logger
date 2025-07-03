@@ -47,6 +47,8 @@ impl MyApp {
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            egui::widgets::global_theme_preference_buttons(ui);
+
             if ui.button("This produces Debug Info").clicked() {
                 self.logger.log_debug(vec![MyLogCategory::Network],"Connecting...")
             }

@@ -120,15 +120,6 @@ pub struct EguiLogger {
     /// Whether search should be case sensitive. This also applies to regex search.
     pub search_with_case_sensitive: bool,
 
-    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
-    pub warn_color: Color32,
-    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
-    pub error_color: Color32,
-    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
-    pub info_color: Color32,
-    #[serde(serialize_with = "serialize_color32", deserialize_with = "deserialize_color32")]
-    pub debug_color: Color32,
-
     // Fields related to the text box and user input.
 
     // Whether to show the entire text input section.
@@ -177,10 +168,6 @@ impl EguiLogger {
             search_regex: None,
             search_with_regex: false,
             search_with_case_sensitive: false,
-            warn_color: Color32::YELLOW,
-            error_color: Color32::RED,
-            info_color: Color32::LIGHT_GRAY,
-            debug_color: Color32::LIGHT_GREEN,
             show_input_area: true,
             input_hint: "Type a message and press Enter...".to_string(),
             input_text: String::new(),
@@ -270,6 +257,30 @@ impl EguiLogger {
             .filter(|record| self.matches_filters(record))
             .collect()
     }
+    /// Get just the formatted text content without colors for search filtering
+    fn format_record_text(&self, record: &LogRecord, time_padding: usize) -> String {
+        let level_str = if self.show_level {
+            format!("[{:}] ", record.level.as_str())
+        } else {
+            String::new()
+        };
+        let category_str = if self.show_categories {
+            format!(
+                "[{:}] ",
+                record.categories.join(","),
+            )
+        } else {
+            String::new()
+        };
+
+        let time_str = format!(
+            "{: >width$}",
+            self.format_time(record.timestamp),
+            width = time_padding
+        );
+
+        format!("{}{}{}{}", time_str, level_str, category_str, record.message)
+    }
 
     /// Check if a record matches current filters
     fn matches_filters(&self, record: &LogRecord) -> bool {
@@ -290,7 +301,7 @@ impl EguiLogger {
 
         // Search filtering
         if !self.search_term.is_empty() {
-            let formatted = self.format_record(record, self.get_time_format_padding()).text;
+            let formatted = self.format_record_text(record, self.get_time_format_padding());
             let matches = if self.search_with_regex {
                 // Note that the regex itself is generated to be case sensitive or not, so
                 // that the regex + case check doesn't need to happen here.
@@ -359,7 +370,7 @@ impl EguiLogger {
                 let mut out_string = String::new();
                 for record in records_to_copy {
                     out_string.push_str(
-                        self.format_record(record, time_padding).text.as_str(), // Use existing time_padding
+                        self.format_record(record, time_padding, ui).text.as_str(), // Use existing time_padding
                     );
                     out_string.push_str("\n"); // Use newline for better copy-paste
                 }
@@ -515,7 +526,7 @@ impl EguiLogger {
                         return;
                     }
 
-                    let layout_job = self.format_record(&record, time_padding);
+                    let layout_job = self.format_record(&record, time_padding, scroll_ui);
                     let raw_text = layout_job.text.clone(); // Still needed for copy in context menu
 
                     let response = scroll_ui.label(layout_job);
@@ -559,7 +570,18 @@ impl EguiLogger {
         }
     }
 
-    fn format_record(&self, record: &LogRecord, time_padding: usize) -> LayoutJob {
+
+    fn get_level_color(&self, level: LogLevel, ui: &egui::Ui) -> Color32 {
+        let visuals = ui.visuals();
+        match level {
+            LogLevel::Error => visuals.error_fg_color,
+            LogLevel::Warn => visuals.warn_fg_color,
+            LogLevel::Info => visuals.text_color(),
+            LogLevel::Debug => visuals.weak_text_color()
+        }
+    }
+
+    fn format_record(&self, record: &LogRecord, time_padding: usize, ui: &egui::Ui) -> LayoutJob {
         let level_str = if self.show_level {
             format!("[{:}] ", record.level.as_str())
         } else {
@@ -576,40 +598,21 @@ impl EguiLogger {
         let mut layout_job = LayoutJob::default();
         let style = Style::default();
 
-        let mut date_str = RichText::new(format!(
+        let level_color = self.get_level_color(record.level, ui);
+
+        let date_str = RichText::new(format!(
             "{: >width$}",
             self.format_time(record.timestamp),
             width = time_padding
-        ))
-            .monospace();
-        match record.level {
-            LogLevel::Warn => date_str = date_str.color(self.warn_color),
-            LogLevel::Error => date_str = date_str.color(self.error_color),
-            _ => {}
-        }
-
+        )).monospace().color(level_color);
         date_str.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
-
-        let highlight_color = match record.level {
-            LogLevel::Warn => self.warn_color,
-            LogLevel::Error => self.error_color,
-            LogLevel::Info => self.info_color,
-            LogLevel::Debug => self.debug_color,
-        };
 
         RichText::new(level_str + &category_str)
             .monospace()
-            .color(highlight_color)
+            .color(level_color)
             .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
-        // The full message gets the color for warn and error since it makes them stand out.
-        let mut message = RichText::new(&record.message).monospace();
-        match record.level {
-            LogLevel::Warn => message = message.color(self.warn_color),
-            LogLevel::Error => message = message.color(self.error_color),
-            _ => {}
-        }
-
+        let message = RichText::new(&record.message).monospace().color(level_color);
         message.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
         layout_job
