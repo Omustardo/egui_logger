@@ -295,6 +295,7 @@ impl EguiLogger {
         self.enforce_limit(&LogLevel::Debug);
     }
 
+    // Categories to apply to LogRecords triggered by user input.
     pub fn set_input_categories<T: ToString>(&mut self, categories: Vec<T>) {
         self.input_categories = categories.into_iter().map(|c| c.to_string()).collect();
     }
