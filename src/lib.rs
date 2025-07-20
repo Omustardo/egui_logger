@@ -492,8 +492,8 @@ impl EguiLogger {
                 ui.horizontal(|ui| {
                     ui.label("Input area hint: ");
                     ui.text_edit_singleline(&mut self.input_hint);
-                    if self.input_hint.len() > 16 {
-                        self.input_hint.truncate(16);
+                    if self.input_hint.len() > 256 {
+                        self.input_hint.truncate(256);
                     }
                 });
             });
