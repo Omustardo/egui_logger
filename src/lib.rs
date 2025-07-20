@@ -6,6 +6,49 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
 use regex::{Regex, RegexBuilder};
 
+// Trait to handle different category input types
+pub trait IntoCategories {
+    fn into_categories(self) -> Vec<String>;
+}
+
+// Implementation for vectors
+impl<T: ToString> IntoCategories for Vec<T> {
+    fn into_categories(self) -> Vec<String> {
+        self.into_iter().map(|c| c.to_string()).collect()
+    }
+}
+
+// Implementation for arrays
+impl<T: ToString, const N: usize> IntoCategories for [T; N] {
+    fn into_categories(self) -> Vec<String> {
+        self.into_iter().map(|c| c.to_string()).collect()
+    }
+}
+
+// Implementation for slices
+impl<T: ToString> IntoCategories for &[T] {
+    fn into_categories(self) -> Vec<String> {
+        self.iter().map(|c| c.to_string()).collect()
+    }
+}
+
+// Implementation for string types
+impl IntoCategories for &str {
+    fn into_categories(self) -> Vec<String> {
+        vec![self.to_string()]
+    }
+}
+impl IntoCategories for String {
+    fn into_categories(self) -> Vec<String> {
+        vec![self]
+    }
+}
+impl IntoCategories for &String {
+    fn into_categories(self) -> Vec<String> {
+        vec![self.clone()]
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum LogLevel {
     Error = 3,
@@ -177,44 +220,55 @@ impl EguiLogger {
         }
     }
 
-    pub fn log_error<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
+    pub fn log_error<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
         self.log(LogLevel::Error, categories, message);
     }
-    pub fn log_warn<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
+
+    pub fn log_warn<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
         self.log(LogLevel::Warn, categories, message);
     }
-    pub fn log_info<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
+
+    pub fn log_info<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
         self.log(LogLevel::Info, categories, message);
     }
-    pub fn log_debug<T: ToString>(&mut self, categories: Vec<T>, message: impl AsRef<str>) {
+
+    pub fn log_debug<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
         self.log(LogLevel::Debug, categories, message);
     }
 
     /// Log a message with the given level and category
-    pub fn log<T: ToString>(&mut self, level: LogLevel, categories: Vec<T>, message: impl AsRef<str>) {
-        let category_strs: Vec<String> = categories.into_iter().map(|c| c.to_string()).collect();
+    pub fn log<C: IntoCategories, M: std::fmt::Display>(
+        &mut self,
+        level: LogLevel,
+        categories: C,
+        message: M
+    ) {
+        let category_strs = categories.into_categories();
 
-        let cleaned_message: String = message.as_ref().chars().filter(|c| !c.eq(&'\n')).collect();
+        // Convert message to string without requiring &format!
+        let message_str = message.to_string();
+        let cleaned_message: String = message_str.chars().filter(|c| !c.eq(&'\n')).collect();
 
         let truncated_message = if cleaned_message.len() > self.max_message_length {
             format!("{}...", &cleaned_message[..self.max_message_length.saturating_sub(3)])
         } else {
-            cleaned_message.parse().unwrap()
+            cleaned_message
         };
 
-        category_strs.iter().for_each(
-            |category| {
-                self.category_counts.entry(category.to_string())
-                    .and_modify(|count| *count += 1)
-                    .or_insert(1);
-            }
-        );
+        category_strs.iter().for_each(|category| {
+            self.category_counts
+                .entry(category.to_string())
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+        });
+
         let record = LogRecord {
-            timestamp: Local::now(),
+            timestamp: chrono::Local::now(),
             level,
             categories: category_strs,
             message: truncated_message,
         };
+
         self.records.get_mut(&level).unwrap().push_back(record);
         self.enforce_limits();
     }

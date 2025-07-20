@@ -1,6 +1,6 @@
 use std::fmt;
 use eframe::NativeOptions;
-use egui_logger::{TimeFormat, TimePrecision};
+use egui_logger::{IntoCategories, TimeFormat, TimePrecision};
 
 fn main() {
     // Initialize the logger
@@ -33,6 +33,12 @@ impl fmt::Display for MyLogCategory {
     }
 }
 
+impl IntoCategories for MyLogCategory {
+    fn into_categories(self) -> Vec<String> {
+        vec![self.to_string()]
+    }
+}
+
 struct MyApp {
     logger: egui_logger::EguiLogger,
 }
@@ -50,16 +56,16 @@ impl eframe::App for MyApp {
             egui::widgets::global_theme_preference_buttons(ui);
 
             if ui.button("This produces Debug Info").clicked() {
-                self.logger.log_debug(vec![MyLogCategory::Network],"Connecting...")
+                self.logger.log_debug(MyLogCategory::Network, "Connecting...")
             }
             if ui.button("This produces an Info").clicked() {
-                self.logger.log_info(vec![MyLogCategory::Dialogue],"Hello World")
+                self.logger.log_info(MyLogCategory::Dialogue, "Hello World")
             }
             if ui.button("This produces an Error").clicked() {
-                self.logger.log_error( vec![MyLogCategory::Network],"Disconnected unexpectedly!");
+                self.logger.log_error(MyLogCategory::Network, "Disconnected unexpectedly!");
             }
             if ui.button("This produces a Warning").clicked() {
-                self.logger.log_warn(vec![MyLogCategory::Unknown], "Be warned")
+                self.logger.log_warn(MyLogCategory::Unknown, "Be warned")
             }
         });
         egui::TopBottomPanel::bottom("chat area").resizable(true).min_height(200.0).show(ctx, |ui| {
