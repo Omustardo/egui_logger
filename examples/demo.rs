@@ -67,6 +67,20 @@ impl eframe::App for MyApp {
             if ui.button("This produces a Warning").clicked() {
                 self.logger.log_warn(MyLogCategory::Unknown, "Be warned")
             }
+            ui.separator();
+            if ui.button("Focus on text input area").clicked() {
+                self.logger.should_focus_input = true;
+            }
+            ui.separator();
+            ui.label("When in the text input area, CTRL+F goes to search. You can tab between interactive things.");
+            ui.label("When in the search input area, pressing Enter gets back to the input area.");
+            ui.label("In a real application, how to get users into the text area is up to you. It is exposed through setting `logger.should_focus_input` to true. This demo handles it by watching for for presses of the Enter key.");
+            // Only handle Enter if nothing has focus
+            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if ctx.memory(|mem| mem.focused()).is_none() {
+                    self.logger.should_focus_input = true;
+                }
+            }
         });
         egui::TopBottomPanel::bottom("chat area").resizable(true).min_height(200.0).show(ctx, |ui| {
             self.logger.show(ui);

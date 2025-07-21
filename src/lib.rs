@@ -138,6 +138,12 @@ pub struct EguiLogger {
     pub show_level: bool,
     // Whether the search box is visible.
     pub show_search: bool,
+    /// A trigger for the UI to focus on the search area. If true, the next rendered frame
+    /// will set focus, and set this value to false.
+    /// For example, if a user clicks the search button, it should immediately focus on the
+    /// search input. That change is done through this trigger.
+    #[serde(skip)]
+    should_focus_search: bool,
 
     /// Maximum length per message (longer messages get truncated)
     /// Note that reducing this value won't truncate existing logs,
@@ -167,6 +173,10 @@ pub struct EguiLogger {
 
     // Whether to show the entire text input section.
     pub show_input_area: bool,
+    /// A trigger for the UI to focus on the text input area. If true, the next rendered frame
+    /// will set focus to the input area, and set this value to false.
+    #[serde(skip)]
+    pub should_focus_input: bool,
     // The current user input.
     input_text: String,
     // When input_text is empty, this text is displayed to indicate where the input box is.
@@ -205,6 +215,7 @@ impl EguiLogger {
             show_categories: true,
             show_level: true,
             show_search: false,
+            should_focus_search: false,
             max_message_length: 2000,
             max_records_per_level: 2000,
             search_term: String::new(),
@@ -212,6 +223,7 @@ impl EguiLogger {
             search_with_regex: false,
             search_with_case_sensitive: false,
             show_input_area: true,
+            should_focus_input: false,
             input_hint: "Type a message and press Enter...".to_string(),
             input_text: String::new(),
             input_text_prefix: String::new(),
@@ -469,6 +481,9 @@ impl EguiLogger {
 
             if ui.button("Search").clicked() {
                 self.show_search = !self.show_search;
+                if self.show_search {
+                    self.should_focus_search = true; // Request focus when opening search
+                }
             }
 
             ui.menu_button("Format", |ui| {
@@ -505,10 +520,16 @@ impl EguiLogger {
             ui.horizontal(|ui| {
                 ui.label("Search: ");
                 let response = ui.text_edit_singleline(&mut self.search_term);
+                if self.should_focus_search {
+                    response.request_focus();
+                    self.should_focus_search = false; // Reset the flag
+                }
                 // Limit the length of the search term to avoid absurdly long strings from being
                 // compiled to regex and potentially causing performance issues. There are
                 // still probably bad edge cases, but people would need to be trying to abuse it.
-                self.search_term = self.search_term.chars().filter(|c| !c.eq(&'\n') && !c.is_control()).take(256).collect();
+                // TODO: should too-small strings also not cause regex searches? For example, "a" will match many lines.
+                // TODO: Make this behavior clearer to users.
+                self.search_term = self.search_term.chars().filter(|c| !c.eq(&'\n') && !c.is_control()).take(512).collect();
                 let mut config_changed = false;
                 if ui.selectable_label(self.search_with_case_sensitive, "Aa").on_hover_text("Case sensitive").clicked() {
                     self.search_with_case_sensitive = !self.search_with_case_sensitive;
@@ -546,6 +567,14 @@ impl EguiLogger {
 
                         let response = input_ui.add(input_edit);
 
+                        // Check for Ctrl+F to open search
+                        if response.has_focus() && input_ui.input(|i| {
+                            i.key_pressed(egui::Key::F) && i.modifiers.ctrl
+                        }) {
+                            self.show_search = true;
+                            self.should_focus_search = true;
+                        }
+
                         // Check for Enter key press to submit
                         if response.lost_focus() && input_ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                             if !self.input_text.trim().is_empty() {
@@ -557,8 +586,14 @@ impl EguiLogger {
                             }
                             // If input_text was empty and Enter was pressed, focus is lost, no log, no refocus. This allows "escaping" the input field.
                         }
+
+                        if self.should_focus_input {
+                            response.request_focus();
+                            self.should_focus_input = false;
+                        }
                     });
                 });
+
         }
 
         // --- Log Display Area (Central Scroll Area) ---
