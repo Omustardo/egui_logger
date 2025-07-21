@@ -631,7 +631,7 @@ impl EguiLogger {
                         });
                         if menu_ui.button("Copy").clicked() {
                             menu_ui.ctx().copy_text(raw_text);
-                            menu_ui.close_menu();
+                            menu_ui.close();
                         }
                     });
                 });
