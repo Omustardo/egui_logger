@@ -3,7 +3,7 @@
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, HashSet, VecDeque};
-use egui::{text::LayoutJob, Align, Color32, FontSelection, RichText, Style};
+use egui::{text::LayoutJob, Align, Color32, FontSelection, PopupCloseBehavior, RichText, Style};
 use regex::{Regex, RegexBuilder};
 
 // Trait to handle different category input types
@@ -444,40 +444,43 @@ impl EguiLogger {
                 ui.ctx().copy_text(out_string);
             };
 
-            ui.menu_button("Filter", |ui| {
+            egui::Popup::menu(&ui.button("Filter"))
+                .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+                .show(|ui| {
+
                 ui.menu_button("Log Levels", |ui| {
-                    for level in vec![LogLevel::Error, LogLevel::Warn, LogLevel::Info, LogLevel::Debug] {
-                        if ui.selectable_label(self.min_display_level <= level, level.as_str()).clicked() {
-                            self.min_display_level = level;
-                        }
-                    }
-                });
-
-                ui.menu_button("Categories", |ui| {
-                    if ui.button("Select All").clicked() {
-                        self.hidden_categories.clear();
-                    }
-                    if ui.button("Unselect All").clicked() {
-                        for category in self.get_all_categories() {
-                            self.hidden_categories.insert(category);
-                        }
-                    }
-                    // Iterate over category names (&String) from category_counts
-                    let categories_to_display: Vec<String> = self.category_counts.keys().cloned().collect();
-                    for cat_str in categories_to_display {
-                        let is_currently_shown = !self.hidden_categories.contains(&cat_str);
-
-                        if ui.selectable_label(is_currently_shown, &cat_str).clicked() {
-                            // Toggle state
-                            if is_currently_shown {
-                                self.hidden_categories.insert(cat_str.to_string()); // Hide it
-                            } else {
-                                self.hidden_categories.remove(&cat_str); // Show it
+                        for level in vec![LogLevel::Error, LogLevel::Warn, LogLevel::Info, LogLevel::Debug] {
+                            if ui.selectable_label(self.min_display_level <= level, level.as_str()).clicked() {
+                                self.min_display_level = level;
                             }
                         }
-                    }
+                    });
+
+                    ui.menu_button("Categories", |ui| {
+                        if ui.button("Select All").clicked() {
+                            self.hidden_categories.clear();
+                        }
+                        if ui.button("Unselect All").clicked() {
+                            for category in self.get_all_categories() {
+                                self.hidden_categories.insert(category);
+                            }
+                        }
+                        // Iterate over category names (&String) from category_counts
+                        let categories_to_display: Vec<String> = self.category_counts.keys().cloned().collect();
+                        for cat_str in categories_to_display {
+                            let is_currently_shown = !self.hidden_categories.contains(&cat_str);
+
+                            if ui.selectable_label(is_currently_shown, &cat_str).clicked() {
+                                // Toggle state
+                                if is_currently_shown {
+                                    self.hidden_categories.insert(cat_str.to_string()); // Hide it
+                                } else {
+                                    self.hidden_categories.remove(&cat_str); // Show it
+                                }
+                            }
+                        }
+                    });
                 });
-            });
 
             if ui.button("Search").clicked() {
                 self.show_search = !self.show_search;
@@ -486,7 +489,11 @@ impl EguiLogger {
                 }
             }
 
-            ui.menu_button("Format", |ui| {
+
+            egui::Popup::menu(&ui.button("Format"))
+                .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+                .show(|ui| {
+
                 ui.menu_button("Time", |ui| {
                     ui.radio_value(&mut self.time_format, TimeFormat::Utc, "UTC");
                     ui.radio_value(&mut self.time_format, TimeFormat::LocalTime, "Local Time");
