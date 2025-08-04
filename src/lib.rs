@@ -549,93 +549,115 @@ impl EguiLogger {
             ui.separator(); // Separator after search bar
         }
 
-        // --- Input Area (Bottom Panel) ---
-        // This panel is defined before the central log area so it can reserve its space.
-        if self.show_input_area {
-            // Use a unique ID for the panel to avoid conflicts if this logger is used multiple times in same ui scope.
-            let panel_id = ui.id().with("egui_logger_input_panel");
-            egui::TopBottomPanel::bottom(panel_id)
-                .resizable(false) // Input area usually has a fixed height
-                .show_inside(ui, |panel_ui| { // `panel_ui` is the Ui for the bottom panel
-                    panel_ui.horizontal(|input_ui| { // Use `input_ui` (which is `panel_ui` here)
-                        let input_edit = egui::TextEdit::singleline(&mut self.input_text)
-                            .char_limit(self.max_message_length)
-                            .cursor_at_end(true)
-                            .hint_text(self.input_hint.clone())
-                            .id(egui::Id::new("egui_logger_input_field")) // Unique ID for focus
-                            .desired_width(f32::INFINITY);
+        // Calculate the height needed for the input area
+        let input_height = if self.show_input_area {
+            ui.spacing().interact_size.y + ui.spacing().item_spacing.y * 2.0 // Approximate height
+        } else {
+            0.0
+        };
 
-                        let response = input_ui.add(input_edit);
+        // Reserve space for input area at the bottom if enabled
+        let available_rect = ui.available_rect_before_wrap();
+        let log_area_height = available_rect.height() - input_height;
 
-                        // Check for Ctrl+F to open search
-                        if response.has_focus() && input_ui.input(|i| {
-                            i.key_pressed(egui::Key::F) && i.modifiers.ctrl
-                        }) {
-                            self.show_search = true;
-                            self.should_focus_search = true;
-                        }
+        // Create log display area with calculated height
+        if log_area_height > 0.0 {
+            let log_rect = egui::Rect::from_min_size(
+                available_rect.min,
+                egui::Vec2::new(available_rect.width(), log_area_height)
+            );
 
-                        // Check for Enter key press to submit
-                        if response.lost_focus() && input_ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            if !self.input_text.trim().is_empty() {
-                                let prefix_text: String = self.input_text_prefix.chars().take(16).collect();
-                                let current_input = std::mem::take(&mut self.input_text); // Get text and clear field
-                                let submitted_text = format!("{}{}", prefix_text, current_input);
-                                self.log_info(self.input_categories.clone(), submitted_text.as_str());
-                                response.request_focus(); // Keep focus on the input field after submit.
-                            }
-                            // If input_text was empty and Enter was pressed, focus is lost, no log, no refocus. This allows "escaping" the input field.
-                        }
+            let mut log_ui = ui.child_ui(log_rect, egui::Layout::top_down(egui::Align::LEFT), None);
 
-                        if self.should_focus_input {
-                            response.request_focus();
-                            self.should_focus_input = false;
-                        }
-                    });
-                });
+            // --- Log Display Area (Central Scroll Area) ---
+            // This `ScrollArea` will use the space remaining in `ui` after the top controls
+            // and the bottom input panel have been laid out.
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false]) // Fill available width and height. Crucial.
+                .stick_to_bottom(true)
+                .show(&mut log_ui, |scroll_ui| {
+                    let mut all_records: Vec<&LogRecord> = self.records.values().flatten().collect();
+                    all_records.sort_by_key(|r| r.timestamp);
 
-        }
-
-        // --- Log Display Area (Central Scroll Area) ---
-        // This `ScrollArea` will use the space remaining in `ui` after the top controls
-        // and the bottom input panel have been laid out.
-        egui::ScrollArea::vertical()
-            .auto_shrink([false, false]) // Fill available width and height. Crucial.
-            .stick_to_bottom(true)
-            .show(ui, |scroll_ui| {
-
-                let mut all_records: Vec<&LogRecord> = self.records.values().flatten().collect();
-                all_records.sort_by_key(|r| r.timestamp);
-
-                if all_records.is_empty() && !self.show_input_area { // Only if truly nothing else might take vertical space
-                    scroll_ui.label("No logs to display.");
-                }
-
-                all_records.into_iter().for_each(|record| {
-                    if !self.matches_filters(&record) {
-                        return;
+                    if all_records.is_empty() && !self.show_input_area {
+                        scroll_ui.label("No logs to display.");
                     }
 
-                    let layout_job = self.format_record(&record, time_padding, scroll_ui);
-                    let raw_text = layout_job.text.clone(); // Still needed for copy in context menu
-
-                    let response = scroll_ui.label(layout_job);
-
-                    response.clone().context_menu(|menu_ui| {
-                        if self.show_categories {
-                            menu_ui.label(&record.categories.join(","));
+                    all_records.into_iter().for_each(|record| {
+                        if !self.matches_filters(&record) {
+                            return;
                         }
-                        let string_format = format!("[{:?}]: {}", record.level, record.message);
-                        menu_ui.vertical(|v_ui| {
-                            v_ui.monospace(string_format);
+
+                        let layout_job = self.format_record(&record, time_padding, scroll_ui);
+                        let raw_text = layout_job.text.clone(); // Still needed for copy in context menu
+
+                        let response = scroll_ui.label(layout_job);
+
+                        response.clone().context_menu(|menu_ui| {
+                            if self.show_categories {
+                                menu_ui.label(&record.categories.join(","));
+                            }
+                            let string_format = format!("[{:?}]: {}", record.level, record.message);
+                            menu_ui.vertical(|v_ui| {
+                                v_ui.monospace(string_format);
+                            });
+                            if menu_ui.button("Copy").clicked() {
+                                menu_ui.ctx().copy_text(raw_text);
+                                menu_ui.close();
+                            }
                         });
-                        if menu_ui.button("Copy").clicked() {
-                            menu_ui.ctx().copy_text(raw_text);
-                            menu_ui.close();
-                        }
                     });
                 });
+        }
+
+        // Add input area at the bottom if enabled
+        if self.show_input_area {
+            // Move to the bottom of the available area
+            let input_rect = egui::Rect::from_min_size(
+                egui::Pos2::new(available_rect.min.x, available_rect.min.y + log_area_height),
+                egui::Vec2::new(available_rect.width(), input_height)
+            );
+
+            let mut input_ui = ui.child_ui(input_rect, egui::Layout::top_down(egui::Align::LEFT), None);
+
+            input_ui.separator();
+            input_ui.horizontal(|ui| {
+                let input_edit = egui::TextEdit::singleline(&mut self.input_text)
+                    .char_limit(self.max_message_length)
+                    .cursor_at_end(true)
+                    .hint_text(self.input_hint.clone())
+                    // Unique ID for focusing with ctrl+F.
+                    .id(egui::Id::new("egui_logger_input_field"))
+                    .desired_width(f32::INFINITY);
+
+                let response = ui.add(input_edit);
+
+                // Check for Ctrl+F to open search
+                if response.has_focus() && ui.input(|i| {
+                    i.key_pressed(egui::Key::F) && i.modifiers.ctrl
+                }) {
+                    self.show_search = true;
+                    self.should_focus_search = true;
+                }
+
+                // Check for Enter key press to submit
+                if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    if !self.input_text.trim().is_empty() {
+                        let prefix_text: String = self.input_text_prefix.chars().take(128).collect();
+                        let current_input = std::mem::take(&mut self.input_text);
+                        let submitted_text = format!("{}{}", prefix_text, current_input);
+                        self.log_info(self.input_categories.clone(), submitted_text.as_str());
+                        response.request_focus(); // Keep focus on the input field after submit.
+                    }
+                    // If input_text was empty and Enter was pressed, focus is lost, no log, no refocus. This allows "escaping" the input field.
+                }
+
+                if self.should_focus_input {
+                    response.request_focus();
+                    self.should_focus_input = false;
+                }
             });
+        }
     }
 
     fn format_time(
