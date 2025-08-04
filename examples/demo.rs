@@ -1,6 +1,6 @@
-use std::fmt;
 use eframe::NativeOptions;
 use egui_logger::{IntoCategories, TimeFormat, TimePrecision};
+use std::fmt;
 
 fn main() {
     // Initialize the logger
@@ -11,11 +11,16 @@ fn main() {
     logger.time_precision = TimePrecision::Milliseconds;
     logger.input_text_prefix = "User: ".to_string();
     logger.max_records_per_level = 5;
-    logger.set_input_categories(vec![MyLogCategory::Input,MyLogCategory::Dialogue]);
+    logger.set_input_categories(vec![MyLogCategory::Input, MyLogCategory::Dialogue]);
 
     let app = MyApp::new(logger);
 
-    eframe::run_native("egui_logger", NativeOptions::default(), Box::new(|_cc| Ok(Box::new(app)))).unwrap();
+    eframe::run_native(
+        "egui_logger",
+        NativeOptions::default(),
+        Box::new(|_cc| Ok(Box::new(app))),
+    )
+    .unwrap();
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -44,9 +49,7 @@ struct MyApp {
 }
 impl MyApp {
     pub fn new(logger: egui_logger::EguiLogger) -> Self {
-        Self {
-            logger
-        }
+        Self { logger }
     }
 }
 
@@ -82,8 +85,11 @@ impl eframe::App for MyApp {
                 }
             }
         });
-        egui::TopBottomPanel::bottom("chat area").resizable(true).min_height(200.0).show(ctx, |ui| {
-            self.logger.show(ui);
-        });
+        egui::TopBottomPanel::bottom("chat area")
+            .resizable(true)
+            .min_height(200.0)
+            .show(ctx, |ui| {
+                self.logger.show(ui);
+            });
     }
 }

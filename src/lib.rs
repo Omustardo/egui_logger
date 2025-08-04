@@ -1,10 +1,10 @@
 #![doc = include_str!("../README.md")]
 
 use chrono::{DateTime, Local};
+use egui::{Align, Color32, FontSelection, PopupCloseBehavior, RichText, Style, text::LayoutJob};
+use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, HashSet, VecDeque};
-use egui::{text::LayoutJob, Align, Color32, FontSelection, PopupCloseBehavior, RichText, Style};
-use regex::{Regex, RegexBuilder};
 
 // Trait to handle different category input types
 pub trait IntoCategories {
@@ -49,7 +49,9 @@ impl IntoCategories for &String {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord,
+)]
 pub enum LogLevel {
     Error = 3,
     Warn = 2,
@@ -232,7 +234,11 @@ impl EguiLogger {
         }
     }
 
-    pub fn log_error<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
+    pub fn log_error<C: IntoCategories, M: std::fmt::Display>(
+        &mut self,
+        categories: C,
+        message: M,
+    ) {
         self.log(LogLevel::Error, categories, message);
     }
 
@@ -244,7 +250,11 @@ impl EguiLogger {
         self.log(LogLevel::Info, categories, message);
     }
 
-    pub fn log_debug<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
+    pub fn log_debug<C: IntoCategories, M: std::fmt::Display>(
+        &mut self,
+        categories: C,
+        message: M,
+    ) {
         self.log(LogLevel::Debug, categories, message);
     }
 
@@ -253,7 +263,7 @@ impl EguiLogger {
         &mut self,
         level: LogLevel,
         categories: C,
-        message: M
+        message: M,
     ) {
         let category_strs = categories.into_categories();
 
@@ -262,7 +272,10 @@ impl EguiLogger {
         let cleaned_message: String = message_str.chars().filter(|c| !c.eq(&'\n')).collect();
 
         let truncated_message = if cleaned_message.len() > self.max_message_length {
-            format!("{}...", &cleaned_message[..self.max_message_length.saturating_sub(3)])
+            format!(
+                "{}...",
+                &cleaned_message[..self.max_message_length.saturating_sub(3)]
+            )
         } else {
             cleaned_message
         };
@@ -289,13 +302,13 @@ impl EguiLogger {
     fn enforce_limit(&mut self, level: &LogLevel) {
         let records = self.records.get_mut(level).unwrap();
         while records.len() > self.max_records_per_level {
-             if let Some(r) = records.pop_front() {
-                 r.categories.iter().for_each(
-                     |category| {
-                         self.category_counts.entry(category.to_string()).and_modify(|count| *count -= 1);
-                     }
-                 )
-             }
+            if let Some(r) = records.pop_front() {
+                r.categories.iter().for_each(|category| {
+                    self.category_counts
+                        .entry(category.to_string())
+                        .and_modify(|count| *count -= 1);
+                })
+            }
         }
     }
 
@@ -320,7 +333,9 @@ impl EguiLogger {
 
     /// Get all records that match current filters
     pub fn filtered_records(&self) -> Vec<&LogRecord> {
-        self.records.values().flatten()
+        self.records
+            .values()
+            .flatten()
             .filter(|record| self.matches_filters(record))
             .collect()
     }
@@ -332,10 +347,7 @@ impl EguiLogger {
             String::new()
         };
         let category_str = if self.show_categories {
-            format!(
-                "[{:}] ",
-                record.categories.join(","),
-            )
+            format!("[{:}] ", record.categories.join(","),)
         } else {
             String::new()
         };
@@ -346,7 +358,10 @@ impl EguiLogger {
             width = time_padding
         );
 
-        format!("{}{}{}{}", time_str, level_str, category_str, record.message)
+        format!(
+            "{}{}{}{}",
+            time_str, level_str, category_str, record.message
+        )
     }
 
     /// Check if a record matches current filters
@@ -360,8 +375,11 @@ impl EguiLogger {
         if !self.hidden_categories.is_empty() {
             // TODO: Should it be this way, or based on all of the categories being hidden? What's more intuitive?
             // If any of a LogRecord's categories are marked as hidden, then hide the whole thing.
-            if record.categories.iter()
-                .any(|cat| self.hidden_categories.contains(cat)) {
+            if record
+                .categories
+                .iter()
+                .any(|cat| self.hidden_categories.contains(cat))
+            {
                 return false;
             }
         }
@@ -380,7 +398,9 @@ impl EguiLogger {
             } else if self.search_with_case_sensitive {
                 formatted.contains(&self.search_term)
             } else {
-                formatted.to_lowercase().contains(&self.search_term.to_lowercase())
+                formatted
+                    .to_lowercase()
+                    .contains(&self.search_term.to_lowercase())
             };
             if !matches {
                 return false;
@@ -427,7 +447,8 @@ impl EguiLogger {
 
             if ui.button("Copy").clicked() {
                 // Collect, filter, then sort records for a chronological copy.
-                let mut records_to_copy: Vec<&LogRecord> = self.records
+                let mut records_to_copy: Vec<&LogRecord> = self
+                    .records
                     .values()
                     .flatten()
                     .filter(|record| self.matches_filters(record))
@@ -447,10 +468,17 @@ impl EguiLogger {
             egui::Popup::menu(&ui.button("Filter"))
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .show(|ui| {
-
-                ui.menu_button("Log Levels", |ui| {
-                        for level in vec![LogLevel::Error, LogLevel::Warn, LogLevel::Info, LogLevel::Debug] {
-                            if ui.selectable_label(self.min_display_level <= level, level.as_str()).clicked() {
+                    ui.menu_button("Log Levels", |ui| {
+                        for level in vec![
+                            LogLevel::Error,
+                            LogLevel::Warn,
+                            LogLevel::Info,
+                            LogLevel::Debug,
+                        ] {
+                            if ui
+                                .selectable_label(self.min_display_level <= level, level.as_str())
+                                .clicked()
+                            {
                                 self.min_display_level = level;
                             }
                         }
@@ -466,7 +494,8 @@ impl EguiLogger {
                             }
                         }
                         // Iterate over category names (&String) from category_counts
-                        let categories_to_display: Vec<String> = self.category_counts.keys().cloned().collect();
+                        let categories_to_display: Vec<String> =
+                            self.category_counts.keys().cloned().collect();
                         for cat_str in categories_to_display {
                             let is_currently_shown = !self.hidden_categories.contains(&cat_str);
 
@@ -489,36 +518,47 @@ impl EguiLogger {
                 }
             }
 
-
             egui::Popup::menu(&ui.button("Format"))
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .show(|ui| {
-
-                ui.menu_button("Time", |ui| {
-                    ui.radio_value(&mut self.time_format, TimeFormat::Utc, "UTC");
-                    ui.radio_value(&mut self.time_format, TimeFormat::LocalTime, "Local Time");
-                    ui.radio_value(&mut self.time_format, TimeFormat::Hide, "Hide");
-                    ui.separator();
-                    ui.radio_value(&mut self.time_precision, TimePrecision::Seconds, "Seconds");
-                    ui.radio_value(&mut self.time_precision, TimePrecision::Milliseconds, "Milliseconds");
-                });
-                if ui.selectable_label(self.show_categories, "Show Categories").clicked() {
-                    self.show_categories = !self.show_categories;
-                }
-                if ui.selectable_label(self.show_level, "Show Log Level").clicked() {
-                    self.show_level = !self.show_level;
-                }
-                if ui.selectable_label(self.show_input_area, "Show Input Area").clicked() {
-                    self.show_input_area = !self.show_input_area;
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Input area hint: ");
-                    ui.text_edit_singleline(&mut self.input_hint);
-                    if self.input_hint.len() > 256 {
-                        self.input_hint.truncate(256);
+                    ui.menu_button("Time", |ui| {
+                        ui.radio_value(&mut self.time_format, TimeFormat::Utc, "UTC");
+                        ui.radio_value(&mut self.time_format, TimeFormat::LocalTime, "Local Time");
+                        ui.radio_value(&mut self.time_format, TimeFormat::Hide, "Hide");
+                        ui.separator();
+                        ui.radio_value(&mut self.time_precision, TimePrecision::Seconds, "Seconds");
+                        ui.radio_value(
+                            &mut self.time_precision,
+                            TimePrecision::Milliseconds,
+                            "Milliseconds",
+                        );
+                    });
+                    if ui
+                        .selectable_label(self.show_categories, "Show Categories")
+                        .clicked()
+                    {
+                        self.show_categories = !self.show_categories;
                     }
+                    if ui
+                        .selectable_label(self.show_level, "Show Log Level")
+                        .clicked()
+                    {
+                        self.show_level = !self.show_level;
+                    }
+                    if ui
+                        .selectable_label(self.show_input_area, "Show Input Area")
+                        .clicked()
+                    {
+                        self.show_input_area = !self.show_input_area;
+                    }
+                    ui.horizontal(|ui| {
+                        ui.label("Input area hint: ");
+                        ui.text_edit_singleline(&mut self.input_hint);
+                        if self.input_hint.len() > 256 {
+                            self.input_hint.truncate(256);
+                        }
+                    });
                 });
-            });
         });
         ui.separator();
 
@@ -536,13 +576,26 @@ impl EguiLogger {
                 // still probably bad edge cases, but people would need to be trying to abuse it.
                 // TODO: should too-small strings also not cause regex searches? For example, "a" will match many lines.
                 // TODO: Make this behavior clearer to users.
-                self.search_term = self.search_term.chars().filter(|c| !c.eq(&'\n') && !c.is_control()).take(512).collect();
+                self.search_term = self
+                    .search_term
+                    .chars()
+                    .filter(|c| !c.eq(&'\n') && !c.is_control())
+                    .take(512)
+                    .collect();
                 let mut config_changed = false;
-                if ui.selectable_label(self.search_with_case_sensitive, "Aa").on_hover_text("Case sensitive").clicked() {
+                if ui
+                    .selectable_label(self.search_with_case_sensitive, "Aa")
+                    .on_hover_text("Case sensitive")
+                    .clicked()
+                {
                     self.search_with_case_sensitive = !self.search_with_case_sensitive;
                     config_changed = true;
                 }
-                if ui.selectable_label(self.search_with_regex, ".*").on_hover_text("Use regex").clicked() {
+                if ui
+                    .selectable_label(self.search_with_regex, ".*")
+                    .on_hover_text("Use regex")
+                    .clicked()
+                {
                     self.search_with_regex = !self.search_with_regex;
                     config_changed = true;
                 }
@@ -571,7 +624,7 @@ impl EguiLogger {
         if log_area_height > 0.0 {
             let log_rect = egui::Rect::from_min_size(
                 available_rect.min,
-                egui::Vec2::new(available_rect.width(), log_area_height)
+                egui::Vec2::new(available_rect.width(), log_area_height),
             );
 
             let mut log_ui = ui.child_ui(log_rect, egui::Layout::top_down(egui::Align::LEFT), None);
@@ -583,7 +636,8 @@ impl EguiLogger {
                 .auto_shrink([false, false]) // Fill available width and height. Crucial.
                 .stick_to_bottom(true)
                 .show(&mut log_ui, |scroll_ui| {
-                    let mut all_records: Vec<&LogRecord> = self.records.values().flatten().collect();
+                    let mut all_records: Vec<&LogRecord> =
+                        self.records.values().flatten().collect();
                     all_records.sort_by_key(|r| r.timestamp);
 
                     if all_records.is_empty() && !self.show_input_area {
@@ -622,10 +676,11 @@ impl EguiLogger {
             // Move to the bottom of the available area
             let input_rect = egui::Rect::from_min_size(
                 egui::Pos2::new(available_rect.min.x, available_rect.min.y + log_area_height),
-                egui::Vec2::new(available_rect.width(), input_height)
+                egui::Vec2::new(available_rect.width(), input_height),
             );
 
-            let mut input_ui = ui.child_ui(input_rect, egui::Layout::top_down(egui::Align::LEFT), None);
+            let mut input_ui =
+                ui.child_ui(input_rect, egui::Layout::top_down(egui::Align::LEFT), None);
 
             input_ui.separator();
             input_ui.horizontal(|ui| {
@@ -640,9 +695,9 @@ impl EguiLogger {
                 let response = ui.add(input_edit);
 
                 // Check for Ctrl+F to open search
-                if response.has_focus() && ui.input(|i| {
-                    i.key_pressed(egui::Key::F) && i.modifiers.ctrl
-                }) {
+                if response.has_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.ctrl)
+                {
                     self.show_search = true;
                     self.should_focus_search = true;
                 }
@@ -650,7 +705,8 @@ impl EguiLogger {
                 // Check for Enter key press to submit
                 if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     if !self.input_text.trim().is_empty() {
-                        let prefix_text: String = self.input_text_prefix.chars().take(128).collect();
+                        let prefix_text: String =
+                            self.input_text_prefix.chars().take(128).collect();
                         let current_input = std::mem::take(&mut self.input_text);
                         let submitted_text = format!("{}{}", prefix_text, current_input);
                         self.log_info(self.input_categories.clone(), submitted_text.as_str());
@@ -667,10 +723,7 @@ impl EguiLogger {
         }
     }
 
-    fn format_time(
-        &self,
-        time: DateTime<Local>,
-    ) -> String {
+    fn format_time(&self, time: DateTime<Local>) -> String {
         let time = match (self.time_format, self.time_precision) {
             (TimeFormat::Utc, TimePrecision::Seconds) => time
                 .to_utc()
@@ -679,7 +732,9 @@ impl EguiLogger {
                 .to_utc()
                 .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             (TimeFormat::LocalTime, TimePrecision::Seconds) => time.format("%T").to_string(),
-            (TimeFormat::LocalTime, TimePrecision::Milliseconds) => time.format("%T%.3f").to_string(),
+            (TimeFormat::LocalTime, TimePrecision::Milliseconds) => {
+                time.format("%T%.3f").to_string()
+            }
             (TimeFormat::Hide, _) => String::new(),
         };
         if self.time_format == TimeFormat::Hide {
@@ -689,14 +744,13 @@ impl EguiLogger {
         }
     }
 
-
     fn get_level_color(&self, level: LogLevel, ui: &egui::Ui) -> Color32 {
         let visuals = ui.visuals();
         match level {
             LogLevel::Error => visuals.error_fg_color,
             LogLevel::Warn => visuals.warn_fg_color,
             LogLevel::Info => visuals.text_color(),
-            LogLevel::Debug => visuals.weak_text_color()
+            LogLevel::Debug => visuals.weak_text_color(),
         }
     }
 
@@ -707,10 +761,7 @@ impl EguiLogger {
             String::new()
         };
         let category_str = if self.show_categories {
-            format!(
-                "[{:}] ",
-                record.categories.join(","),
-            )
+            format!("[{:}] ", record.categories.join(","),)
         } else {
             String::new()
         };
@@ -723,7 +774,9 @@ impl EguiLogger {
             "{: >width$}",
             self.format_time(record.timestamp),
             width = time_padding
-        )).monospace().color(level_color);
+        ))
+        .monospace()
+        .color(level_color);
         date_str.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
         RichText::new(level_str + &category_str)
@@ -731,7 +784,9 @@ impl EguiLogger {
             .color(level_color)
             .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
-        let message = RichText::new(&record.message).monospace().color(level_color);
+        let message = RichText::new(&record.message)
+            .monospace()
+            .color(level_color);
         message.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
         layout_job
@@ -740,9 +795,9 @@ impl EguiLogger {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::fmt;
     use std::fmt::Formatter;
-    use super::*;
 
     // Example usage and category enum
     #[derive(Debug, Clone, Copy)]
@@ -761,7 +816,6 @@ mod tests {
 
     impl fmt::Display for LogCategory {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-
             match self {
                 LogCategory::Unknown => write!(f, "Unknown"),
                 LogCategory::Dialogue => write!(f, "Dialogue"),
@@ -806,7 +860,7 @@ mod tests {
     #[test]
     fn test_category_filtering() {
         let mut logger = EguiLogger::new();
-        logger.log(LogLevel::Info,vec![LogCategory::Dialogue], "Dialogue msg");
+        logger.log(LogLevel::Info, vec![LogCategory::Dialogue], "Dialogue msg");
         logger.log(LogLevel::Info, vec![LogCategory::Combat], "Combat msg");
 
         // Enable only Dialogue category
@@ -834,7 +888,11 @@ mod tests {
         let mut logger = EguiLogger::new();
         logger.max_message_length = 10;
 
-        logger.log(LogLevel::Info, vec![LogCategory::Unknown], "This is a very long message that should be truncated");
+        logger.log(
+            LogLevel::Info,
+            vec![LogCategory::Unknown],
+            "This is a very long message that should be truncated",
+        );
 
         let records = logger.filtered_records();
         assert_eq!(records.len(), 1);
