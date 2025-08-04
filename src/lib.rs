@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 use chrono::{DateTime, Local};
-use egui::{Align, Color32, FontSelection, PopupCloseBehavior, RichText, Style, text::LayoutJob};
+use egui::{Align, Color32, FontSelection, PopupCloseBehavior, RichText, Style, text::LayoutJob, UiBuilder};
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -627,8 +627,11 @@ impl EguiLogger {
                 egui::Vec2::new(available_rect.width(), log_area_height),
             );
 
-            let mut log_ui = ui.child_ui(log_rect, egui::Layout::top_down(egui::Align::LEFT), None);
-
+            let mut log_ui = ui.new_child(
+                UiBuilder::new()
+                    .max_rect(log_rect)
+                    .layout(egui::Layout::top_down(egui::Align::LEFT))
+            );
             // --- Log Display Area (Central Scroll Area) ---
             // This `ScrollArea` will use the space remaining in `ui` after the top controls
             // and the bottom input panel have been laid out.
@@ -679,8 +682,11 @@ impl EguiLogger {
                 egui::Vec2::new(available_rect.width(), input_height),
             );
 
-            let mut input_ui =
-                ui.child_ui(input_rect, egui::Layout::top_down(egui::Align::LEFT), None);
+            let mut input_ui = ui.new_child(
+                UiBuilder::new()
+                    .max_rect(input_rect)
+                    .layout(egui::Layout::top_down(egui::Align::LEFT))
+            );
 
             input_ui.separator();
             input_ui.horizontal(|ui| {
