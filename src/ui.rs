@@ -8,127 +8,131 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
     let time_padding = logger.get_time_format_padding();
 
     // --- Top Controls ---
-    ui.horizontal(|ui| {
-        if ui.button("Clear").clicked() {
-            logger.clear();
-        }
-
-        if ui.button("Copy").clicked() {
-            // Collect, filter, then sort records for a chronological copy.
-            let mut records_to_copy: Vec<&LogRecord> = logger
-                .records()
-                .values()
-                .flatten()
-                .filter(|record| logger.matches_filters(record))
-                .collect();
-            records_to_copy.sort_by_key(|r| r.timestamp);
-
-            let mut out_string = String::new();
-            for record in records_to_copy {
-                out_string.push_str(
-                    format_record(logger, record, time_padding, ui).text.as_str(), // Use existing time_padding
-                );
-                out_string.push_str("\n"); // Use newline for better copy-paste
+    if logger.show_settings {
+        ui.horizontal(|ui| {
+            if ui.button("Clear").clicked() {
+                logger.clear();
             }
-            ui.ctx().copy_text(out_string);
-        };
 
-        egui::Popup::menu(&ui.button("Filter"))
-            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-            .show(|ui| {
-                ui.menu_button("Log Levels", |ui| {
-                    for level in vec![
-                        LogLevel::Error,
-                        LogLevel::Warn,
-                        LogLevel::Info,
-                        LogLevel::Debug,
-                    ] {
-                        if ui
-                            .selectable_label(logger.min_display_level <= level, level.as_str())
-                            .clicked()
-                        {
-                            logger.min_display_level = level;
-                        }
-                    }
-                });
+            if ui.button("Copy").clicked() {
+                // Collect, filter, then sort records for a chronological copy.
+                let mut records_to_copy: Vec<&LogRecord> = logger
+                    .records()
+                    .values()
+                    .flatten()
+                    .filter(|record| logger.matches_filters(record))
+                    .collect();
+                records_to_copy.sort_by_key(|r| r.timestamp);
 
-                ui.menu_button("Categories", |ui| {
-                    if ui.button("Select All").clicked() {
-                        logger.hidden_categories_mut().clear();
-                    }
-                    if ui.button("Unselect All").clicked() {
-                        for category in logger.get_all_categories() {
-                            logger.hidden_categories_mut().insert(category);
-                        }
-                    }
-                    // Iterate over category names (&String) from category_counts
-                    let categories_to_display: Vec<String> =
-                        logger.category_counts().keys().cloned().collect();
-                    for cat_str in categories_to_display {
-                        let is_currently_shown = !logger.hidden_categories().contains(&cat_str);
+                let mut out_string = String::new();
+                for record in records_to_copy {
+                    out_string.push_str(
+                        format_record(logger, record, time_padding, ui).text.as_str(), // Use existing time_padding
+                    );
+                    out_string.push_str("\n"); // Use newline for better copy-paste
+                }
+                ui.ctx().copy_text(out_string);
+            };
 
-                        if ui.selectable_label(is_currently_shown, &cat_str).clicked() {
-                            // Toggle state
-                            if is_currently_shown {
-                                logger.hidden_categories_mut().insert(cat_str.to_string()); // Hide it
-                            } else {
-                                logger.hidden_categories_mut().remove(&cat_str); // Show it
+            egui::Popup::menu(&ui.button("Filter"))
+                .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+                .show(|ui| {
+                    ui.menu_button("Log Levels", |ui| {
+                        for level in vec![
+                            LogLevel::Error,
+                            LogLevel::Warn,
+                            LogLevel::Info,
+                            LogLevel::Debug,
+                        ] {
+                            if ui
+                                .selectable_label(logger.min_display_level <= level, level.as_str())
+                                .clicked()
+                            {
+                                logger.min_display_level = level;
                             }
                         }
-                    }
-                });
-            });
+                    });
 
-        if ui.button("Search").clicked() {
-            logger.show_search = !logger.show_search;
-            if logger.show_search {
-                logger.set_should_focus_search(true); // Request focus when opening search
+                    ui.menu_button("Categories", |ui| {
+                        if ui.button("Select All").clicked() {
+                            logger.hidden_categories_mut().clear();
+                        }
+                        if ui.button("Unselect All").clicked() {
+                            for category in logger.get_all_categories() {
+                                logger.hidden_categories_mut().insert(category);
+                            }
+                        }
+                        // Iterate over category names (&String) from category_counts
+                        let categories_to_display: Vec<String> =
+                            logger.category_counts().keys().cloned().collect();
+                        for cat_str in categories_to_display {
+                            let is_currently_shown = !logger.hidden_categories().contains(&cat_str);
+
+                            if ui.selectable_label(is_currently_shown, &cat_str).clicked() {
+                                // Toggle state
+                                if is_currently_shown {
+                                    logger.hidden_categories_mut().insert(cat_str.to_string()); // Hide it
+                                } else {
+                                    logger.hidden_categories_mut().remove(&cat_str); // Show it
+                                }
+                            }
+                        }
+                    });
+                });
+
+            if ui.button("Search").clicked() {
+                logger.show_search = !logger.show_search;
+                if logger.show_search {
+                    logger.set_should_focus_search(true); // Request focus when opening search
+                }
             }
-        }
 
-        egui::Popup::menu(&ui.button("Format"))
-            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-            .show(|ui| {
-                ui.menu_button("Time", |ui| {
-                    ui.radio_value(&mut logger.time_format, TimeFormat::Utc, "UTC");
-                    ui.radio_value(&mut logger.time_format, TimeFormat::LocalTime, "Local Time");
-                    ui.radio_value(&mut logger.time_format, TimeFormat::Hide, "Hide");
-                    ui.separator();
-                    ui.radio_value(&mut logger.time_precision, TimePrecision::Seconds, "Seconds");
-                    ui.radio_value(
-                        &mut logger.time_precision,
-                        TimePrecision::Milliseconds,
-                        "Milliseconds",
-                    );
-                });
-                if ui
-                    .selectable_label(logger.show_categories, "Show Categories")
-                    .clicked()
-                {
-                    logger.show_categories = !logger.show_categories;
-                }
-                if ui
-                    .selectable_label(logger.show_level, "Show Log Level")
-                    .clicked()
-                {
-                    logger.show_level = !logger.show_level;
-                }
-                if ui
-                    .selectable_label(logger.show_input_area, "Show Input Area")
-                    .clicked()
-                {
-                    logger.show_input_area = !logger.show_input_area;
-                }
-                ui.horizontal(|ui| {
-                    ui.label("Input area hint: ");
-                    ui.text_edit_singleline(&mut logger.input_hint);
-                    if logger.input_hint.len() > 256 {
-                        logger.input_hint.truncate(256);
+            egui::Popup::menu(&ui.button("Format"))
+                .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
+                .show(|ui| {
+                    ui.menu_button("Time", |ui| {
+                        ui.radio_value(&mut logger.time_format, TimeFormat::Utc, "UTC");
+                        ui.radio_value(&mut logger.time_format, TimeFormat::LocalTime, "Local Time");
+                        ui.radio_value(&mut logger.time_format, TimeFormat::Hide, "Hide");
+                        ui.separator();
+                        ui.radio_value(&mut logger.time_precision, TimePrecision::Seconds, "Seconds");
+                        ui.radio_value(
+                            &mut logger.time_precision,
+                            TimePrecision::Milliseconds,
+                            "Milliseconds",
+                        );
+                    });
+                    if ui
+                        .selectable_label(logger.show_categories, "Show Categories")
+                        .clicked()
+                    {
+                        logger.show_categories = !logger.show_categories;
+                    }
+                    if ui
+                        .selectable_label(logger.show_level, "Show Log Level")
+                        .clicked()
+                    {
+                        logger.show_level = !logger.show_level;
+                    }
+                    if ui
+                        .selectable_label(logger.show_input_area, "Show Input Area")
+                        .clicked()
+                    {
+                        logger.show_input_area = !logger.show_input_area;
+                    }
+                    if logger.show_input_area {
+                        ui.horizontal(|ui| {
+                            ui.label("Input area hint: ");
+                            ui.text_edit_singleline(&mut logger.input_hint);
+                            if logger.input_hint.len() > 256 {
+                                logger.input_hint.truncate(256);
+                            }
+                        });
                     }
                 });
-            });
-    });
-    ui.separator();
+        });
+        ui.separator();
+    }
 
     // --- Search Bar (if visible) ---
     if logger.show_search {

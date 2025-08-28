@@ -13,6 +13,10 @@ pub struct EguiLogger {
     //   since it will have them sorted by timestamp for free. It should also be able to do a fixed max size? Try using itertools?
     records: HashMap<LogLevel, VecDeque<LogRecord>>,
 
+    /// Whether the entire settings bar should be shown. This option is not really meant for end
+    /// users. It's for a developer to disable if they only want to display text.
+    pub show_settings: bool,
+
     // Count of each category. Kept up to date as new records are added and old are removed.
     // Reports with multiple categories are counted once per category.
     // This is necessary to keep track of which categories exist, and which have been seen in the
@@ -109,6 +113,7 @@ impl EguiLogger {
     pub fn new() -> Self {
         Self {
             records: default_records(),
+            show_settings: true,
             category_counts: Default::default(),
             min_display_level: LogLevel::Debug,
             hidden_categories: HashSet::new(),

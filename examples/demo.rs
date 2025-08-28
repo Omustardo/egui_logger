@@ -75,6 +75,8 @@ impl eframe::App for MyApp {
                 self.logger.should_focus_input = true;
             }
             ui.separator();
+            ui.checkbox(&mut self.logger.show_settings, "Toggle settings");
+            ui.separator();
             ui.label("When in the text input area, CTRL+F goes to search. You can tab between interactive things.");
             ui.label("Pressing Enter gets back to the input area, except if in the search input area, where it just exits that.");
             ui.label("In a real application, how to get users into the text area is up to you. It is exposed through setting `logger.should_focus_input` to true. This demo handles it by watching for for presses of the Enter key.");
