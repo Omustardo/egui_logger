@@ -230,10 +230,6 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
                         if logger.show_categories {
                             menu_ui.label(&record.categories.join(","));
                         }
-                        let string_format = format!("[{:?}]: {}", record.level, record.message);
-                        menu_ui.vertical(|v_ui| {
-                            v_ui.monospace(string_format);
-                        });
                         if menu_ui.button("Copy").clicked() {
                             menu_ui.ctx().copy_text(raw_text);
                             menu_ui.close();
