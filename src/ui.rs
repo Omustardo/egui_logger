@@ -1,4 +1,4 @@
-use egui::{Align, Color32, FontSelection, PopupCloseBehavior, RichText, Style, text::LayoutJob, UiBuilder};
+use egui::{Align, Color32, FontSelection, PopupCloseBehavior, RichText, Style, UiBuilder, text::LayoutJob};
 
 use crate::logger::EguiLogger;
 use crate::record::LogRecord;
@@ -38,12 +38,7 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .show(|ui| {
                     ui.menu_button("Log Levels", |ui| {
-                        for level in vec![
-                            LogLevel::Error,
-                            LogLevel::Warn,
-                            LogLevel::Info,
-                            LogLevel::Debug,
-                        ] {
+                        for level in vec![LogLevel::Error, LogLevel::Warn, LogLevel::Info, LogLevel::Debug] {
                             if ui
                                 .selectable_label(logger.min_display_level <= level, level.as_str())
                                 .clicked()
@@ -63,8 +58,7 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
                             }
                         }
                         // Iterate over category names (&String) from category_counts
-                        let categories_to_display: Vec<String> =
-                            logger.category_counts().keys().cloned().collect();
+                        let categories_to_display: Vec<String> = logger.category_counts().keys().cloned().collect();
                         for cat_str in categories_to_display {
                             let is_currently_shown = !logger.hidden_categories().contains(&cat_str);
 
@@ -96,28 +90,15 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
                         ui.radio_value(&mut logger.time_format, TimeFormat::Hide, "Hide");
                         ui.separator();
                         ui.radio_value(&mut logger.time_precision, TimePrecision::Seconds, "Seconds");
-                        ui.radio_value(
-                            &mut logger.time_precision,
-                            TimePrecision::Milliseconds,
-                            "Milliseconds",
-                        );
+                        ui.radio_value(&mut logger.time_precision, TimePrecision::Milliseconds, "Milliseconds");
                     });
-                    if ui
-                        .selectable_label(logger.show_categories, "Show Categories")
-                        .clicked()
-                    {
+                    if ui.selectable_label(logger.show_categories, "Show Categories").clicked() {
                         logger.show_categories = !logger.show_categories;
                     }
-                    if ui
-                        .selectable_label(logger.show_level, "Show Log Level")
-                        .clicked()
-                    {
+                    if ui.selectable_label(logger.show_level, "Show Log Level").clicked() {
                         logger.show_level = !logger.show_level;
                     }
-                    if ui
-                        .selectable_label(logger.show_input_area, "Show Input Area")
-                        .clicked()
-                    {
+                    if ui.selectable_label(logger.show_input_area, "Show Input Area").clicked() {
                         logger.show_input_area = !logger.show_input_area;
                     }
                     if logger.show_input_area {
@@ -199,7 +180,7 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
         let mut log_ui = ui.new_child(
             UiBuilder::new()
                 .max_rect(log_rect)
-                .layout(egui::Layout::top_down(egui::Align::LEFT))
+                .layout(egui::Layout::top_down(Align::LEFT)),
         );
         // --- Log Display Area (Central Scroll Area) ---
         // This `ScrollArea` will use the space remaining in `ui` after the top controls
@@ -208,8 +189,7 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
             .auto_shrink([false, false]) // Fill available width and height. Crucial.
             .stick_to_bottom(true)
             .show(&mut log_ui, |scroll_ui| {
-                let mut all_records: Vec<&LogRecord> =
-                    logger.records().values().flatten().collect();
+                let mut all_records: Vec<&LogRecord> = logger.records().values().flatten().collect();
                 all_records.sort_by_key(|r| r.timestamp);
 
                 if all_records.is_empty() && !logger.show_input_area {
@@ -250,7 +230,7 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
         let mut input_ui = ui.new_child(
             UiBuilder::new()
                 .max_rect(input_rect)
-                .layout(egui::Layout::top_down(egui::Align::LEFT))
+                .layout(egui::Layout::top_down(egui::Align::LEFT)),
         );
 
         input_ui.separator();
@@ -270,9 +250,7 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
             let response = ui.add(input_edit);
 
             // Check for Ctrl+F to open search
-            if response.has_focus()
-                && ui.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.ctrl)
-            {
+            if response.has_focus() && ui.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.ctrl) {
                 logger.show_search = true;
                 logger.set_should_focus_search(true);
             }
@@ -280,8 +258,7 @@ pub fn render_logger_ui(logger: &mut EguiLogger, ui: &mut egui::Ui) {
             // Check for Enter key press to submit
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 if !logger.input_text().trim().is_empty() {
-                    let prefix_text: String =
-                        logger.input_text_prefix.chars().take(128).collect();
+                    let prefix_text: String = logger.input_text_prefix.chars().take(128).collect();
                     let current_input = logger.take_input_text();
                     let submitted_text = format!("{}{}", prefix_text, current_input);
                     logger.log_info(logger.input_categories().to_vec(), submitted_text.as_str());
@@ -329,8 +306,8 @@ fn format_record(logger: &EguiLogger, record: &LogRecord, time_padding: usize, u
         logger.format_time(record.timestamp),
         width = time_padding
     ))
-        .monospace()
-        .color(level_color);
+    .monospace()
+    .color(level_color);
     date_str.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
     RichText::new(level_str + &category_str)
@@ -338,9 +315,7 @@ fn format_record(logger: &EguiLogger, record: &LogRecord, time_padding: usize, u
         .color(level_color)
         .append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
-    let message = RichText::new(&record.message)
-        .monospace()
-        .color(level_color);
+    let message = RichText::new(&record.message).monospace().color(level_color);
     message.append_to(&mut layout_job, &style, FontSelection::Default, Align::LEFT);
 
     layout_job

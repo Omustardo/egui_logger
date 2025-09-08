@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord,
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum LogLevel {
     Error = 3,
     Warn = 2,

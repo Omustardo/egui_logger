@@ -3,10 +3,10 @@
 mod categories;
 mod logger;
 mod record;
+mod tests;
 mod types;
 mod ui;
 mod utils;
-mod tests;
 
 // Re-export public API
 pub use categories::IntoCategories;

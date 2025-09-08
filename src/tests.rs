@@ -1,9 +1,8 @@
-
 #[cfg(test)]
 mod tests {
+    use crate::{EguiLogger, LogLevel, TimeFormat, TimePrecision};
     use std::fmt;
     use std::fmt::Formatter;
-    use crate::{EguiLogger, LogLevel, TimeFormat, TimePrecision};
 
     // Note: These tests don't actually create egui UI since that would require
     // a full egui context setup. Instead, they test the underlying state changes
@@ -145,7 +144,11 @@ mod tests {
         logger.hide_category(LogCategory::Combat);
         let visible_records = logger.filtered_records();
         assert_eq!(visible_records.len(), 2);
-        assert!(!visible_records.iter().any(|r| r.categories.contains(&"Combat".to_string())));
+        assert!(
+            !visible_records
+                .iter()
+                .any(|r| r.categories.contains(&"Combat".to_string()))
+        );
 
         // Simulate hiding all categories except Dialogue
         logger.hide_category(LogCategory::UI);

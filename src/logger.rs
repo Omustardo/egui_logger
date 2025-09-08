@@ -142,11 +142,7 @@ impl EguiLogger {
         crate::ui::render_logger_ui(self, ui);
     }
 
-    pub fn log_error<C: IntoCategories, M: std::fmt::Display>(
-        &mut self,
-        categories: C,
-        message: M,
-    ) {
+    pub fn log_error<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
         self.log(LogLevel::Error, categories, message);
     }
 
@@ -158,21 +154,12 @@ impl EguiLogger {
         self.log(LogLevel::Info, categories, message);
     }
 
-    pub fn log_debug<C: IntoCategories, M: std::fmt::Display>(
-        &mut self,
-        categories: C,
-        message: M,
-    ) {
+    pub fn log_debug<C: IntoCategories, M: std::fmt::Display>(&mut self, categories: C, message: M) {
         self.log(LogLevel::Debug, categories, message);
     }
 
     /// Log a message with the given level and category
-    pub fn log<C: IntoCategories, M: std::fmt::Display>(
-        &mut self,
-        level: LogLevel,
-        categories: C,
-        message: M,
-    ) {
+    pub fn log<C: IntoCategories, M: std::fmt::Display>(&mut self, level: LogLevel, categories: C, message: M) {
         let record = self.get_log_record(level, categories, message);
         self.log_record(record);
     }
@@ -192,10 +179,7 @@ impl EguiLogger {
         let cleaned_message: String = message_str.chars().filter(|c| !c.eq(&'\n')).collect();
 
         let truncated_message = if cleaned_message.len() > self.max_message_length {
-            format!(
-                "{}...",
-                &cleaned_message[..self.max_message_length.saturating_sub(3)]
-            )
+            format!("{}...", &cleaned_message[..self.max_message_length.saturating_sub(3)])
         } else {
             cleaned_message
         };
@@ -274,11 +258,7 @@ impl EguiLogger {
         if !self.hidden_categories.is_empty() {
             // TODO: Should it be this way, or based on all of the categories being hidden? What's more intuitive?
             // If any of a LogRecord's categories are marked as hidden, then hide the whole thing.
-            if record
-                .categories
-                .iter()
-                .any(|cat| self.hidden_categories.contains(cat))
-            {
+            if record.categories.iter().any(|cat| self.hidden_categories.contains(cat)) {
                 return false;
             }
         }
@@ -297,9 +277,7 @@ impl EguiLogger {
             } else if self.search_with_case_sensitive {
                 formatted.contains(&self.search_term)
             } else {
-                formatted
-                    .to_lowercase()
-                    .contains(&self.search_term.to_lowercase())
+                formatted.to_lowercase().contains(&self.search_term.to_lowercase())
             };
             if !matches {
                 return false;
@@ -328,10 +306,7 @@ impl EguiLogger {
             width = self.get_time_format_padding()
         );
 
-        format!(
-            "{}{}{}{}",
-            time_str, level_str, category_str, record.message
-        )
+        format!("{}{}{}{}", time_str, level_str, category_str, record.message)
     }
 
     /// Get all unique categories that have been logged
@@ -362,16 +337,14 @@ impl EguiLogger {
 
     pub(crate) fn format_time(&self, time: chrono::DateTime<chrono::Local>) -> String {
         let time = match (self.time_format, self.time_precision) {
-            (TimeFormat::Utc, TimePrecision::Seconds) => time
-                .to_utc()
-                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-            (TimeFormat::Utc, TimePrecision::Milliseconds) => time
-                .to_utc()
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
-            (TimeFormat::LocalTime, TimePrecision::Seconds) => time.format("%T").to_string(),
-            (TimeFormat::LocalTime, TimePrecision::Milliseconds) => {
-                time.format("%T%.3f").to_string()
+            (TimeFormat::Utc, TimePrecision::Seconds) => {
+                time.to_utc().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
             }
+            (TimeFormat::Utc, TimePrecision::Milliseconds) => {
+                time.to_utc().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+            }
+            (TimeFormat::LocalTime, TimePrecision::Seconds) => time.format("%T").to_string(),
+            (TimeFormat::LocalTime, TimePrecision::Milliseconds) => time.format("%T%.3f").to_string(),
             (TimeFormat::Hide, _) => String::new(),
         };
         if self.time_format == TimeFormat::Hide {
