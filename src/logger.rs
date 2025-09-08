@@ -173,6 +173,18 @@ impl EguiLogger {
         categories: C,
         message: M,
     ) {
+        let record = self.get_log_record(level, categories, message);
+        self.log_record(record);
+    }
+
+    /// Get a log record. This is the same LogRecord created by calling `log`.
+    /// The record can be pushed into the chat using [`Self::log_record`].
+    pub fn get_log_record<C: IntoCategories, M: std::fmt::Display>(
+        &mut self,
+        level: LogLevel,
+        categories: C,
+        message: M,
+    ) -> LogRecord {
         let category_strs = categories.into_categories();
 
         // Convert message to string without requiring &format!
@@ -195,14 +207,17 @@ impl EguiLogger {
                 .or_insert(1);
         });
 
-        let record = LogRecord {
-            timestamp: chrono::Local::now(),
+        LogRecord {
+            timestamp: Local::now(),
             level,
             categories: category_strs,
             message: truncated_message,
-        };
+        }
+    }
 
-        self.records.get_mut(&level).unwrap().push_back(record);
+    /// Adds a LogRecord to the logs. The provided timestamp is used, so it may show up above existing messages.
+    pub fn log_record(&mut self, log_record: LogRecord) {
+        self.records.get_mut(&log_record.level).unwrap().push_back(log_record);
         self.enforce_limits();
     }
 
