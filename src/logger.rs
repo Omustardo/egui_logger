@@ -160,14 +160,21 @@ impl EguiLogger {
 
     /// Log a message with the given level and category
     pub fn log<C: IntoCategories, M: std::fmt::Display>(&mut self, level: LogLevel, categories: C, message: M) {
-        let record = self.get_log_record(level, categories, message);
+        let mut record = Self::get_log_record(level, categories, message);
+        self.clean_record(&mut record);
         self.log_record(record);
+    }
+
+    /// Modifies the provided LogRecord to conform to the logger.
+    fn clean_record(&self, record: &mut LogRecord) {
+        if record.message.len() > self.max_message_length {
+            record.message = format!("{}...", &record.message[..self.max_message_length.saturating_sub(3)]);
+        }
     }
 
     /// Get a log record. This is the same LogRecord created by calling `log`.
     /// The record can be pushed into the chat using [`Self::log_record`].
     pub fn get_log_record<C: IntoCategories, M: std::fmt::Display>(
-        &mut self,
         level: LogLevel,
         categories: C,
         message: M,
@@ -178,30 +185,25 @@ impl EguiLogger {
         let message_str = message.to_string();
         let cleaned_message: String = message_str.chars().filter(|c| !c.eq(&'\n')).collect();
 
-        let truncated_message = if cleaned_message.len() > self.max_message_length {
-            format!("{}...", &cleaned_message[..self.max_message_length.saturating_sub(3)])
-        } else {
-            cleaned_message
-        };
+        LogRecord {
+            timestamp: Local::now(),
+            level,
+            categories: category_strs,
+            message: cleaned_message,
+        }
+    }
 
-        category_strs.iter().for_each(|category| {
+    /// Adds a LogRecord to the logs. The provided timestamp is used, so it will show up above existing messages if messages are provided out of order.
+    pub fn log_record(&mut self, log_record: LogRecord) {
+        log_record.categories.iter().for_each(|category| {
             self.category_counts
                 .entry(category.to_string())
                 .and_modify(|count| *count += 1)
                 .or_insert(1);
         });
 
-        LogRecord {
-            timestamp: Local::now(),
-            level,
-            categories: category_strs,
-            message: truncated_message,
-        }
-    }
-
-    /// Adds a LogRecord to the logs. The provided timestamp is used, so it may show up above existing messages.
-    pub fn log_record(&mut self, log_record: LogRecord) {
         self.records.get_mut(&log_record.level).unwrap().push_back(log_record);
+
         self.enforce_limits();
     }
 
